@@ -49,7 +49,9 @@ This mod is released under the MIT License.
 	<!--Thumbnail-->
 	<Thumbnail Value="Properties/Thumbnail.png" />
 	<!--Screenshot, can be set multiple times-->
-	<Screenshot Value="" />
+	<Screenshot Value="Properties/Screenshot1.png" />
+	<Screenshot Value="Properties/Screenshot2.png" />
+	<Screenshot Value="Properties/Screenshot3.png" />
 	<!--Tag, can be set multiple times-->
 	<Tag Value="Code Mod" />
 	<!--Link to the forum post where the mod can be discussed-->
