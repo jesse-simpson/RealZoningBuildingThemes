@@ -1,0 +1,108 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<Configurations>Debug;Release</Configurations>
+	
+		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
+		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
+
+		<!--The zone panel UI (React) lives in UI\ and is built separately; keep its packages out of the C# project-->
+		<DefaultItemExcludes>$(DefaultItemExcludes);UI\node_modules\**;UI\build\**</DefaultItemExcludes>
+	</PropertyGroup>
+	
+	<!--Imports must be after PropertyGroup block-->
+	<Import Project="$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))\Mod.props" />
+	<Import Project="$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))\Mod.targets" />
+
+	<ItemGroup>
+		<Reference Include="Game">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.Core">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.Logging">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.IO.AssetDatabase">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.UI">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.UI.Binding">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.Localization">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.Mathematics">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.PSI.Common">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Colossal.Collections">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Newtonsoft.Json">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Unity.InputSystem">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="UnityEngine.CoreModule">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Unity.Burst">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Unity.Collections">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Unity.Entities">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Unity.Mathematics">
+			<Private>false</Private>
+		</Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Update="System">
+			<Private>false</Private>
+		</Reference>
+		<Reference Update="System.Core">
+			<Private>false</Private>
+		</Reference>
+		<Reference Update="System.Data">
+			<Private>false</Private>
+		</Reference>
+	</ItemGroup>
+
+	<!--Copies the built zone panel UI (UI\build, made with "npm run build" in UI\) into the deployed mod folder,
+	    after the toolchain's DeployWIP step has replaced that folder with the C# build output-->
+	<Target Name="DeployUI" AfterTargets="DeployWIP" Condition="Exists('$(ProjectDir)UI\build')">
+		<ItemGroup>
+			<UIFiles Include="$(ProjectDir)UI\build\**\*.*" />
+		</ItemGroup>
+		<Message Text="Copy zone panel UI to $(DeployDir)" Importance="high" />
+		<Copy SourceFiles="@(UIFiles)" DestinationFiles="@(UIFiles->'$(DeployDir)\%(RecursiveDir)%(Filename)%(Extension)')" />
+	</Target>
+
+	<!--Ships the credits (NOTICE.txt) and the licences of the adapted code with the mod, as their licences require-->
+	<Target Name="DeployNotices" AfterTargets="DeployWIP">
+		<ItemGroup>
+			<NoticeFiles Include="$(ProjectDir)NOTICE.txt;$(ProjectDir)LICENSE.txt" />
+			<LicenseFiles Include="$(ProjectDir)LICENSES\*.txt" />
+		</ItemGroup>
+		<Copy SourceFiles="@(NoticeFiles)" DestinationFolder="$(DeployDir)" Condition="Exists('%(FullPath)')" />
+		<Copy SourceFiles="@(LicenseFiles)" DestinationFolder="$(DeployDir)\LICENSES" />
+	</Target>
+
+	<ItemGroup>
+		<None Include="$(ModPropsFile)" Link="Properties\Mod.props" />
+		<None Include="$(ModTargetsFile)" Link="Properties\Mod.targets" />
+	</ItemGroup>
+
+</Project>

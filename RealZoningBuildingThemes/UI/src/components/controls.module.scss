@@ -1,0 +1,368 @@
+// Controls styled from the game's theme variables (index.css :root). Flexbox only; no `gap`
+// (spacing by margins) to stay within what the game's UI engine supports.
+
+.chip {
+  margin: 0 5rem 5rem 0;
+  padding: 4rem 10rem;
+  border-radius: 14rem;
+  border: 1rem solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--textColorDimmest);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.chipOn {
+  border-top-color: var(--accentColorNormal);
+  border-right-color: var(--accentColorNormal);
+  border-bottom-color: var(--accentColorNormal);
+  border-left-color: var(--accentColorNormal);
+  background-color: var(--selectedColorDark);
+  color: var(--textColor);
+  font-weight: bold;
+
+  &:hover {
+    background-color: var(--selectedColor);
+  }
+}
+
+.iconToggle {
+  width: 30rem;
+  height: 30rem;
+  margin: 0 4rem 4rem 0;
+  padding: 1rem;
+  border-radius: 5rem;
+  border: 1rem solid rgba(255, 255, 255, 0.12);
+  background-color: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    width: 100%;
+    height: 100%;
+    opacity: 0.45;
+  }
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.iconToggleAll {
+  padding: 6rem;
+}
+
+.iconToggleOn {
+  border-top-width: 2rem;
+  border-top-style: solid;
+  border-top-color: var(--accentColorNormal);
+  border-right-width: 2rem;
+  border-right-style: solid;
+  border-right-color: var(--accentColorNormal);
+  border-bottom-width: 2rem;
+  border-bottom-style: solid;
+  border-bottom-color: var(--accentColorNormal);
+  border-left-width: 2rem;
+  border-left-style: solid;
+  border-left-color: var(--accentColorNormal);
+  background-color: var(--selectedColorDark);
+
+  img {
+    opacity: 1;
+  }
+}
+
+.iconToggleAll.iconToggleOn {
+  background-color: var(--accentColorDark);
+}
+
+.segmented {
+  display: flex;
+  flex-direction: row;
+  padding: 2rem;
+  border-radius: 6rem;
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.segment {
+  padding: 5rem 12rem;
+  border: none;
+  border-radius: 4rem;
+  background-color: transparent;
+  color: var(--textColorDimmest);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.segmentOn {
+  background-color: var(--selectedColor);
+  color: var(--textColor);
+  font-weight: bold;
+
+  &:hover {
+    background-color: var(--selectedColor-hover);
+  }
+}
+
+.segmentedSmall .segment {
+  padding: 3rem 8rem;
+}
+
+.switch {
+  position: relative;
+  width: 40rem;
+  height: 22rem;
+  border-radius: 11rem;
+  border: none;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.switchOn {
+  background-color: var(--accentColorNormal);
+}
+
+.switchKnob {
+  position: absolute;
+  top: 3rem;
+  left: 3rem;
+  width: 16rem;
+  height: 16rem;
+  border-radius: 8rem;
+  background-color: white;
+}
+
+.switchOn .switchKnob {
+  left: 21rem;
+}
+
+.checkbox {
+  width: 18rem;
+  height: 18rem;
+  padding: 2rem;
+  border-radius: 3rem;
+  border: 2rem solid rgba(255, 255, 255, 0.5);
+  background-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.checkboxOn {
+  border-top-color: var(--accentColorNormal);
+  border-right-color: var(--accentColorNormal);
+  border-bottom-color: var(--accentColorNormal);
+  border-left-color: var(--accentColorNormal);
+  background-color: var(--accentColorNormal);
+}
+
+.stepper {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-radius: 6rem;
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.stepperButton {
+  width: 24rem;
+  height: 24rem;
+  border: none;
+  border-radius: 4rem;
+  background-color: transparent;
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeM);
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.stepperValue {
+  min-width: 52rem;
+  text-align: center;
+  font-size: var(--fontSizeS);
+  color: var(--textColor);
+}
+
+.slider {
+  position: relative;
+  height: 24rem;
+  margin: 0 9rem;
+}
+
+.sliderTrack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 10rem;
+  height: 4rem;
+  border-radius: 2rem;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.sliderFill {
+  position: absolute;
+  top: 10rem;
+  height: 4rem;
+  border-radius: 2rem;
+  background-color: var(--accentColorNormal);
+}
+
+.sliderThumb {
+  position: absolute;
+  top: 3rem;
+  width: 18rem;
+  height: 18rem;
+  margin-left: -9rem;
+  border-radius: 9rem;
+  background-color: white;
+  border-top-width: 3rem;
+  border-top-style: solid;
+  border-top-color: var(--accentColorNormal);
+  border-right-width: 3rem;
+  border-right-style: solid;
+  border-right-color: var(--accentColorNormal);
+  border-bottom-width: 3rem;
+  border-bottom-style: solid;
+  border-bottom-color: var(--accentColorNormal);
+  border-left-width: 3rem;
+  border-left-style: solid;
+  border-left-color: var(--accentColorNormal);
+
+  &:hover {
+    background-color: var(--accentColorLighter);
+  }
+}
+
+.picker {
+  position: relative;
+}
+
+.pickerButton {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 3rem 6rem;
+  border: none;
+  border-radius: 4rem;
+  background-color: transparent;
+  color: var(--textColorDimmest);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeXS);
+  font-weight: bold;
+  text-transform: uppercase;
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.pickerButtonPlain {
+  width: 100%;
+  justify-content: space-between;
+  padding: 5rem 8rem;
+  font-size: var(--fontSizeS);
+  font-weight: normal;
+  text-transform: none;
+  color: var(--textColor);
+}
+
+.pickerButtonFlush {
+  padding-left: 0;
+}
+
+.pickerArrow {
+  width: 10rem;
+  height: 10rem;
+  margin-left: 6rem;
+}
+
+.pickerList {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  max-height: 320rem;
+  overflow-y: auto;
+  z-index: 10;
+  min-width: 180rem;
+  padding: 4rem;
+  border-radius: 4rem;
+  background-color: var(--panelColorDark);
+  backdrop-filter: var(--panelBlur);
+  box-shadow: 0 4rem 12rem rgba(0, 0, 0, 0.4);
+}
+
+.pickerItem {
+  display: block;
+  width: 100%;
+  padding: 5rem 8rem;
+  border: none;
+  border-radius: 3rem;
+  background-color: transparent;
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+  text-align: left;
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.pickerItemOn {
+  background-color: var(--selectedColor);
+}
+
+// Find It's value filter row: label left, controls right, 28rem buttons, 75rem number field.
+
+.valueControls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+
+  button {
+    width: 28rem;
+    height: 28rem;
+  }
+}
+
+.valueField {
+  width: 52rem;
+  height: 28rem;
+  font-size: var(--fontSizeS);
+}
+
+.signButton {
+  margin-right: 4rem;
+}
+
+.signOn {
+  background-color: var(--accentColorNormal);
+}
+
+.rangeStepper {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.rangeTo {
+  margin: 0 8rem;
+  font-size: var(--fontSizeS);
+  color: var(--textColorDimmest);
+}

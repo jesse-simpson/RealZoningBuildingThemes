@@ -1,0 +1,23 @@
+Real Zoning & Building Themes for Cities: Skylines II
+Copyright (c) 2026 Jesse Simpson.
+
+This mod includes code adapted from the following projects. Each adapted file
+says so in its header and lists what was changed.
+
+Plop the Growables for Cities: Skylines II
+github.com/Algernon-A/PlopTheGrowables
+Copyright (c) 2024-26 algernon (K. Algernon A. Sheppard).  All rights reserved.
+Licensed under the Apache License, Version 2.0 (LICENSES/Apache-2.0.txt).
+Used in: Zones/RzbtZoneCheckSystem.cs (zone check).
+
+Custom Zones for Cities: Skylines II
+github.com/dvovo/CustomZones
+Copyright (c) 2026 dvovo. Licensed under the MIT License (LICENSES/MIT-CustomZones.txt).
+Used in: Zones/RzbtZoneSpawnSystem.cs (zone spawning), Zones/LevelUpSwapSystem.cs
+(level-up control), and the approach to creating zone prefabs in Zones/ZoneSetupSystem.cs.
+
+Also acknowledged, with no code copied:
+- ZoningByLaw (MIT): approach to creating custom zone prefabs.
+- Find It by T.D.W.: the building filter layout and zone type definitions follow it.
+- Unified Icon Library: zone type icons are loaded from it at runtime.
+- Building Themes for Cities: Skylines (boformer and contributors): the original idea.

@@ -1,0 +1,67 @@
+﻿<Publish>
+	<!--Id must be set in order to update existed mod. it is not required for publishing mod for the first time-->
+	<ModId Value="" />
+	<!--Name of the mod to display to players-->
+	<DisplayName Value="Real Zoning &amp; Building Themes" />
+	<!--Short description of the mod-->
+	<ShortDescription Value="Custom zones that grow only the buildings you choose, from any theme, region pack or custom asset." />
+	<!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
+	<LongDescription>
+Real Zoning &amp; Building Themes brings the idea of Building Themes from the first game to Cities: Skylines II. Create your own zones, paint them with the normal zoning tools, and decide exactly which buildings grow in each.
+
+# Zones that look like real places
+Make a streetcar suburb of narrow detached houses, a main street of attached mixed use, or a strip of low commercial. Each zone has rules for:
+- Use, including mixed use and low rent
+- Theme or region pack
+- Height
+- Lot width and depth
+- Side setbacks (attached, narrow or detached)
+- Parking on the lot
+
+Then include or exclude any building by hand, with thumbnails and Find It style filters.
+
+# Every building you have
+Vanilla, DLC, region packs and custom assets. Custom assets are grouped by the pack they came from.
+
+# Works like a game zone
+Each zone is based on a game zone and shares its demand, services and icon. Buildings level up within the zone's rules and keep the same design where they can. If you tighten a zone's rules, buildings that no longer fit are condemned and replaced, as the game does.
+
+# Managing zones
+Open the panel with the building button at the top left. Create, duplicate, retire, restore and delete zones. Zones are shared by all your cities; where you paint them is saved with each city.
+
+# Compatibility
+- Plop the Growables: supported. Plopped buildings are left alone and its despawn setting is honoured.
+- Find It: works alongside it.
+- Zone Organizer: supported. Custom zones keep their own tab.
+- Requires Unified Icon Library.
+
+# Before uninstalling
+Saves store painted cells by zone. Before removing the mod, open each city, press **Prepare for uninstall** at the bottom of the zone list, and save. Otherwise those cells load unzoned and their buildings are condemned.
+
+# Translations
+English, German, French, Spanish, Italian, Polish, Brazilian Portuguese, Russian, Japanese, Korean, and Simplified and Traditional Chinese. All but English are machine translated; corrections are welcome.
+
+# Credits
+Includes code adapted from Plop the Growables by algernon (Apache 2.0) and Custom Zones by dvovo (MIT). Inspired by Building Themes by boformer.
+	</LongDescription>
+	<!--Thumbnail-->
+	<Thumbnail Value="Properties/Thumbnail.png" />
+	<!--Screenshot, can be set multiple times-->
+	<Screenshot Value="" />
+	<!--Tag, can be set multiple times-->
+	<Tag Value="Code Mod" />
+	<!--Link to the forum post where the mod can be discussed-->
+	<ForumLink Value="" />
+	<!--Version of the mod-->
+	<ModVersion Value="1.0.0" />
+	<!--Recommended version of the base game to use the mod-->
+	<GameVersion Value="1.6.*" />
+	<!--Dependency for the mod, can be set multiple times-->
+	<Dependency Id="74417" DisplayName="Unified Icon Library" />
+	<!--Required DLC, can be set multiple times. Supported values are "Landmark Buildings", "San Fransisco Set", "Beach Properties", "Urban Promenades", "Modern Architecture"-->
+	<RequiredDLC Value="" />
+	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
+	<ChangeLog Value="First release." />
+	<!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "twitter", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme", "bluesky"-->
+	<!--<ExternalLink Type="github" Url="" />-->
+</Publish>

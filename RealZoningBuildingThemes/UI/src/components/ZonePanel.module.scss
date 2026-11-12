@@ -1,0 +1,650 @@
+// Zone panel layout. Colours, fonts and radii come from the game's theme variables (index.css
+// :root). The game's UI engine ignores variables inside shorthand properties, so borders and
+// radii that use them are written longhand. Sizes in rem (1rem is 1px at 1080p). Flexbox only.
+
+.panel {
+  position: absolute;
+  top: 60rem;
+  left: 10rem;
+  width: 1820rem;
+}
+
+// Title bar, in the game's panel style (one close button)
+
+.titleBar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: 40rem;
+  padding: 6rem 10rem;
+  background-color: var(--panelColorDark);
+  backdrop-filter: var(--panelBlur);
+  border-top-left-radius: var(--panelRadius);
+  border-top-right-radius: var(--panelRadius);
+}
+
+.titleSpace {
+  width: 30rem;
+}
+
+.title {
+  flex: 1;
+  text-align: center;
+  font-size: var(--fontSizeL);
+  text-transform: uppercase;
+  color: var(--accentColorNormal);
+}
+
+.close {
+  width: 30rem;
+  height: 30rem;
+  padding: 5rem;
+  border-width: 0;
+  border-radius: 15rem;
+  background-color: transparent;
+
+  img {
+    width: 100%;
+    height: 100%;
+  }
+
+  &:hover {
+    background-color: var(--hoverColorBright);
+  }
+}
+
+.body {
+  display: flex;
+  flex-direction: row;
+  height: 860rem;
+}
+
+// Zone list
+
+.zoneColumn {
+  display: flex;
+  flex-direction: column;
+  width: 260rem;
+  flex-shrink: 0;
+  border-right-width: 2rem;
+  border-right-style: solid;
+  border-right-color: var(--dividerColor);
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.zoneColumnHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8rem 10rem 6rem 14rem;
+}
+
+.columnHeader {
+  font-size: var(--fontSizeS);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--textColorDimmest);
+}
+
+.newZone {
+  padding: 4rem 10rem;
+  border-width: 0;
+  border-radius: 4rem;
+  background-color: var(--accentColorDark);
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+
+  &:hover {
+    background-color: var(--accentColorDark-hover);
+  }
+}
+
+.creator {
+  margin: 0 10rem 8rem;
+  padding: 10rem;
+  border-radius: 4rem;
+  background-color: var(--sectionBackgroundColor);
+}
+
+.creatorLabel {
+  margin: 6rem 0 4rem;
+  font-size: var(--fontSizeXS);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--textColorDimmest);
+}
+
+.textField {
+  width: 100%;
+  padding: 5rem 8rem;
+  border-width: 0;
+  border-radius: 4rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+}
+
+.creatorPicker {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 4rem;
+}
+
+.createButton {
+  width: 100%;
+  margin-top: 10rem;
+  padding: 6rem;
+  border-width: 0;
+  border-radius: 4rem;
+  background-color: var(--accentColorNormal);
+  color: var(--focusedTextColorDark);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+  font-weight: bold;
+
+  &:hover {
+    background-color: var(--accentColorNormal-hover);
+  }
+}
+
+.zoneList {
+  flex: 1;
+}
+
+.zoneRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  padding: 7rem 12rem;
+  border-width: 0;
+  background-color: transparent;
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  text-align: left;
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.zoneRowOn {
+  background-color: var(--selectedColor);
+
+  &:hover {
+    background-color: var(--selectedColor-hover);
+  }
+}
+
+.zoneRowText {
+  flex: 1;
+  min-width: 0;
+  margin-left: 12rem;
+}
+
+.zoneRowName {
+  font-size: var(--fontSizeM);
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zoneRowMeta {
+  font-size: var(--fontSizeXS);
+  color: var(--textColorDimmest);
+}
+
+.zoneFooter {
+  display: flex;
+  flex-direction: column;
+  padding: 8rem;
+  border-top-width: 2rem;
+  border-top-style: solid;
+  border-top-color: var(--dividerColor);
+}
+
+.footerButton {
+  margin-top: 4rem;
+}
+
+.zoneIcon {
+  position: relative;
+  width: 36rem;
+  height: 36rem;
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.zoneIconLarge {
+  width: 56rem;
+  height: 56rem;
+}
+
+.swatch {
+  position: absolute;
+  right: -2rem;
+  bottom: -2rem;
+  width: 13rem;
+  height: 13rem;
+  border-radius: 2rem;
+  border: 2rem solid rgba(0, 0, 0, 0.4);
+}
+
+.emptyWorkspace {
+  padding: 20rem;
+  font-size: var(--fontSizeM);
+  color: var(--textColorDisabled);
+}
+
+// Workspace: rules + building list, with the Apply bar under them
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.workspaceMain {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+}
+
+.rulesColumn {
+  display: flex;
+  flex-direction: column;
+  width: 520rem;
+  flex-shrink: 0;
+  border-right-width: 2rem;
+  border-right-style: solid;
+  border-right-color: var(--dividerColor);
+}
+
+.zoneHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 10rem 14rem;
+  background-color: var(--sectionHeaderColor);
+}
+
+.zoneHeaderText {
+  flex: 1;
+  margin-left: 12rem;
+}
+
+.nameField {
+  width: 100%;
+  padding: 3rem 6rem;
+  border-width: 0;
+  border-radius: 4rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeL);
+  font-weight: bold;
+}
+
+.zoneCounts {
+  margin-top: 4rem;
+  font-size: var(--fontSizeXS);
+  color: var(--textColorDimmest);
+}
+
+.rulesScroll {
+  flex: 1;
+}
+
+.rules {
+  padding-bottom: 8rem;
+}
+
+.section {
+  margin: 8rem 12rem 0;
+  border-top-left-radius: var(--panelRadiusInner);
+  border-top-right-radius: var(--panelRadiusInner);
+  border-bottom-left-radius: var(--panelRadiusInner);
+  border-bottom-right-radius: var(--panelRadiusInner);
+  background-color: var(--sectionBackgroundColor);
+}
+
+.sectionHeader {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 6rem 12rem;
+  font-size: var(--fontSizeS);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--textColorDimmest);
+  background-color: var(--sectionHeaderColor);
+}
+
+.sectionAside {
+  text-transform: none;
+  font-weight: normal;
+  color: var(--accentColorNormal);
+}
+
+.sectionBody {
+  padding: 8rem 12rem 3rem;
+}
+
+.useGroup {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.useLabel,
+.themeRowLabel {
+  width: 76rem;
+  flex-shrink: 0;
+  padding-top: 5rem;
+  font-size: var(--fontSizeS);
+  color: var(--textColorDimmest);
+}
+
+.themeRowLabel {
+  width: 60rem;
+  padding-top: 7rem;
+}
+
+.wrapRow {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.themeRow {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.hint {
+  margin-bottom: 4rem;
+  font-size: var(--fontSizeXS);
+  color: var(--textColorDisabled);
+}
+
+.sliderEnds {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  margin-bottom: 4rem;
+  font-size: var(--fontSizeXS);
+  color: var(--textColorDisabled);
+}
+
+.optionRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6rem;
+}
+
+.rules > .optionRow {
+  margin: 10rem 24rem 0;
+}
+
+.optionLabel {
+  font-size: var(--fontSizeS);
+  color: var(--textColor);
+}
+
+// Height, inside Building shape: label and the chosen range on one line, the slider below.
+.heightRow {
+  margin-bottom: 8rem;
+}
+
+.optionRowTight {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.heightValue {
+  font-size: var(--fontSizeS);
+  color: var(--accentColorNormal);
+}
+
+.optionLabelDim {
+  font-size: var(--fontSizeS);
+  color: var(--textColorDimmest);
+}
+
+.rangeDash {
+  margin: 0 8rem;
+  font-size: var(--fontSizeS);
+  color: var(--textColorDimmest);
+}
+
+// Compact Apply bar: message and buttons on one row, text wraps as needed
+
+.applyBar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 8rem 14rem;
+  border-top-width: 2rem;
+  border-top-style: solid;
+  border-top-color: var(--warningColor);
+  background-color: var(--panelColorDark);
+}
+
+.applyDot {
+  width: 9rem;
+  height: 9rem;
+  margin-right: 10rem;
+  border-radius: 5rem;
+  background-color: var(--warningColor);
+  flex-shrink: 0;
+}
+
+.applyText {
+  flex: 1;
+  font-size: var(--fontSizeS);
+  color: var(--textColor);
+}
+
+.discard,
+.apply {
+  margin-left: 10rem;
+  padding: 6rem 18rem;
+  border-width: 0;
+  border-radius: 4rem;
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+  font-weight: bold;
+}
+
+.discard {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--textColor);
+
+  &:hover {
+    background-color: var(--hoverColorBright);
+  }
+}
+
+.apply {
+  background-color: var(--accentColorNormal);
+  color: var(--focusedTextColorDark);
+
+  &:hover {
+    background-color: var(--accentColorNormal-hover);
+  }
+}
+
+// Custom buildings row in the theme section
+
+.customToggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: 30rem;
+  padding: 0 10rem;
+  border-width: 0;
+  border-radius: 5rem;
+  background-color: rgba(0, 0, 0, 0.25);
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.customArrow {
+  width: 12rem;
+  height: 12rem;
+  margin-left: 8rem;
+}
+
+.customList {
+  display: flex;
+  flex-direction: column;
+  margin: 2rem 0 8rem 60rem;
+  padding: 6rem;
+  border-radius: 4rem;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.customSearch {
+  margin-bottom: 6rem;
+  padding: 5rem 8rem;
+  border-width: 0;
+  border-radius: 4rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+}
+
+.customItem {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 2rem 4rem;
+  border-radius: 3rem;
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.customItemName {
+  flex: 1;
+  min-width: 0;
+  margin-left: 8rem;
+  font-size: var(--fontSizeS);
+  color: var(--textColor);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Zone actions: duplicate, retire, restore, delete, prepare for uninstall
+
+.zoneActions {
+  display: flex;
+  flex-direction: row;
+  margin-top: 6rem;
+}
+
+.smallButton {
+  margin-right: 6rem;
+  padding: 3rem 10rem;
+  border-width: 0;
+  border-radius: 4rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeXS);
+
+  &:hover {
+    background-color: var(--hoverColorBright);
+  }
+}
+
+.dangerButton {
+  background-color: rgba(255, 164, 45, 0.35);
+
+  &:hover {
+    background-color: rgba(255, 164, 45, 0.55);
+  }
+}
+
+.confirm {
+  margin: 6rem 0;
+  padding: 8rem;
+  border-radius: 4rem;
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.confirmWide {
+  margin: 0 12rem 6rem;
+}
+
+.confirmText {
+  margin-bottom: 6rem;
+  font-size: var(--fontSizeXS);
+  color: var(--textColor);
+}
+
+.confirmButtons {
+  display: flex;
+  flex-direction: row;
+}
+
+.notice {
+  margin-bottom: 4rem;
+  font-size: var(--fontSizeXS);
+  color: var(--accentColorLight);
+}
+
+.retiredHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  padding: 10rem 14rem 4rem;
+  border-width: 0;
+  background-color: transparent;
+  color: var(--textColorDimmest);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.retiredRow {
+  padding: 4rem 14rem 6rem;
+}
+
+.retiredName {
+  margin-bottom: 4rem;
+  font-size: var(--fontSizeS);
+  color: var(--textColorDimmest);
+}

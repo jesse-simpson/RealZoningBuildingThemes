@@ -1,0 +1,15 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build output
+**/bin/
+**/obj/
+
+# Modding toolchain cache
+**/Library/
+
+# Zone panel UI: npm packages and the built bundle (rebuilt with "npm run build" in UI\)
+**/UI/node_modules/
+**/UI/build/

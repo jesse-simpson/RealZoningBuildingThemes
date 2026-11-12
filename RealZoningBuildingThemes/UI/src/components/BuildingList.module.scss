@@ -1,0 +1,305 @@
+// Building list. Columns are fixed-width flex items (the game's UI engine has no CSS grid).
+// Theme variables only in longhand properties (the engine ignores them inside shorthands).
+
+.list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 8rem 14rem;
+  background-color: var(--sectionHeaderColor);
+}
+
+.title {
+  font-size: var(--fontSizeM);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--textColor);
+}
+
+.titleCounts {
+  margin-left: 14rem;
+  font-size: var(--fontSizeS);
+  color: var(--accentColorLight);
+}
+
+.flex {
+  flex: 1;
+}
+
+.search {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 280rem;
+  padding: 4rem 10rem;
+  border-radius: 4rem;
+  background-color: rgba(0, 0, 0, 0.3);
+
+  img {
+    width: 16rem;
+    height: 16rem;
+    margin-right: 8rem;
+    opacity: 0.7;
+  }
+}
+
+.searchInput {
+  flex: 1;
+  border-width: 0;
+  background-color: transparent;
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+}
+
+.filters {
+  padding: 8rem 14rem 2rem;
+  border-bottom-width: 1rem;
+  border-bottom-style: solid;
+  border-bottom-color: var(--dividerColor);
+}
+
+.filterRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8rem;
+}
+
+// Filter labels: one style for all; the first label of each row sits in a fixed column so the
+// rows' controls line up, later labels follow their row with a gap.
+.filterLabel,
+.filterLabelInline {
+  font-size: var(--fontSizeS);
+  font-weight: bold;
+  color: var(--textColor);
+}
+
+.filterLabel {
+  width: 96rem;
+  flex-shrink: 0;
+}
+
+.filterLabelInline {
+  margin-left: 20rem;
+  margin-right: 10rem;
+}
+
+.zoneTypes {
+  display: flex;
+  flex-direction: row;
+}
+
+.zoneTypeButton {
+  margin-right: 2rem;
+}
+
+.themeFilters {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.themeFilterItem {
+  display: flex;
+}
+
+.themeSep {
+  margin-left: 8rem;
+  padding-left: 8rem;
+  border-left-width: 1rem;
+  border-left-style: solid;
+  border-left-color: var(--dividerColor);
+}
+
+.bulk {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 6rem 14rem;
+  border-bottom-width: 1rem;
+  border-bottom-style: solid;
+  border-bottom-color: var(--dividerColor);
+}
+
+.bulkLabel {
+  margin-left: 10rem;
+  font-size: var(--fontSizeS);
+  color: var(--textColor);
+}
+
+.bulkCount {
+  flex: 1;
+  margin-left: 14rem;
+  font-size: var(--fontSizeS);
+  color: var(--accentColorNormal);
+}
+
+.bulkButton {
+  margin-left: 8rem;
+  padding: 5rem 16rem;
+  border-width: 0;
+  border-radius: 4rem;
+  background-color: var(--accentColorDark);
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+
+  &:hover {
+    background-color: var(--accentColorDark-hover);
+  }
+}
+
+.bulkButtonOff {
+  opacity: 0.4;
+}
+
+.header,
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 14rem;
+}
+
+.header {
+  // The rows below lose about 17rem to the scrollbar's gutter; pad the header by the same, so
+  // its titles sit over their columns.
+  padding-right: 31rem;
+  height: 32rem;
+  font-size: var(--fontSizeXS);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--textColorDimmest);
+  border-bottom-width: 1rem;
+  border-bottom-style: solid;
+  border-bottom-color: var(--dividerColor);
+}
+
+.rows {
+  flex: 1;
+}
+
+.row {
+  padding-top: 4rem;
+  padding-bottom: 4rem;
+  border-bottom: 1rem solid rgba(255, 255, 255, 0.04);
+}
+
+.rowAlt {
+  background-color: rgba(255, 255, 255, 0.025);
+}
+
+.rowDim {
+  opacity: 0.72;
+}
+
+.rowSelected {
+  background-color: rgba(30, 131, 170, 0.25);
+}
+
+// Every column left-aligned (the game ignores text-align on these cells), with the same widths in
+// the header and the rows.
+.colCheck { width: 32rem; flex-shrink: 0; display: flex; }
+.colThumb { width: 72rem; flex-shrink: 0; display: flex; }
+.colName { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 0 10rem; }
+.colTheme { width: 54rem; flex-shrink: 0; display: flex; justify-content: flex-start; }
+.colUse { width: 110rem; flex-shrink: 0; display: flex; justify-content: flex-start; font-size: var(--fontSizeS); color: var(--textColorDimmest); }
+.colLevel { width: 64rem; flex-shrink: 0; display: flex; justify-content: flex-start; font-size: var(--fontSizeS); color: var(--textColor); }
+.colLot { width: 60rem; flex-shrink: 0; display: flex; justify-content: flex-start; font-size: var(--fontSizeS); color: var(--textColor); }
+.colHeight { width: 74rem; flex-shrink: 0; display: flex; justify-content: flex-start; font-size: var(--fontSizeS); color: var(--textColor); }
+.colStatus { width: 170rem; flex-shrink: 0; display: flex; justify-content: flex-start; }
+.colAction { width: 86rem; flex-shrink: 0; display: flex; justify-content: flex-end; }
+
+.thumb {
+  width: 64rem;
+  height: 50rem;
+  border-radius: 4rem;
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.name {
+  font-size: var(--fontSizeS);
+  font-weight: bold;
+  color: var(--textColor);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.why {
+  margin-top: 2rem;
+  font-size: var(--fontSizeXS);
+  color: var(--textColorDimmest);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.themeIcon {
+  width: 28rem;
+  height: 28rem;
+  border-radius: 3rem;
+}
+
+.themeCode {
+  font-size: var(--fontSizeXS);
+  color: var(--textColorDimmest);
+}
+
+.badge {
+  padding: 3rem 10rem;
+  border-radius: 10rem;
+  font-size: var(--fontSizeXS);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.badge_rule { background-color: rgba(30, 131, 170, 0.45); color: var(--accentColorLight); }
+.badge_manual { background-color: rgba(139, 219, 70, 0.22); color: var(--positiveColor); }
+.badge_excluded { background-color: rgba(255, 164, 45, 0.22); color: var(--warningColor); }
+.badge_nomatch { background-color: rgba(255, 255, 255, 0.08); color: var(--textColorDimmest); }
+
+.action {
+  padding: 4rem 12rem;
+  border: 1rem solid rgba(255, 255, 255, 0.2);
+  border-radius: 4rem;
+  background-color: transparent;
+  color: var(--textColor);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeXS);
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
+
+.empty {
+  padding: 16rem;
+  font-size: var(--fontSizeM);
+  color: var(--textColorDisabled);
+}
+
+.more {
+  display: block;
+  width: 100%;
+  padding: 10rem;
+  border-width: 0;
+  background-color: transparent;
+  color: var(--accentColorNormal);
+  font-family: var(--fontFamily);
+  font-size: var(--fontSizeS);
+
+  &:hover {
+    background-color: var(--hoverColor);
+  }
+}
