@@ -7,42 +7,44 @@
 	<ShortDescription Value="Custom zones that grow only the buildings you choose, from any theme, region pack or custom asset." />
 	<!--Long description of the mod. Single line or multi line. Supports minimal markdown subset-->
 	<LongDescription>
-Real Zoning &amp; Building Themes brings the idea of Building Themes from the first game to Cities: Skylines II. Create your own zones, paint them with the normal zoning tools, and decide exactly which buildings grow in each.
+A Cities: Skylines II mod in the spirit of Building Themes from the original Cities: Skylines. Create zones with custom rules, choose exactly which buildings grow in each, and paint them with normal zoning tools.
 
-# Zones that look like real places
-Make a streetcar suburb of narrow detached houses, a main street of attached mixed use, or a strip of low commercial. Each zone has rules for:
-- Use, including mixed use and low rent
-- Theme or region pack
-- Height
-- Lot width and depth
-- Side setbacks (attached, narrow or detached)
-- Parking on the lot
+Tired of micromanaging 20 different zone types or plopping buildings by hand to get a range of buildings and realistic cities? Want to allow both residential and commercial buildings in the same zone? Want to finely control building heights? Then this mod is for you. It adds the ability to easily zone for any available building using a set of basic zoning rules, and then customize the buildings chosen to your heart's content.
 
-Then include or exclude any building by hand, with thumbnails and Find It style filters.
+# Features
+- **Custom zones**: each zone is based on a game zone (its demand, services and toolbar icon) and can be customized however you would like.
+- **Zoning rules**: restrict what grows by its use, theme or region pack, height, lot width and depth, side setbacks, and parking.
+- **Per-building control**: include or exclude any building by hand, with thumbnails and filters.
+- **All sources**: vanilla, DLC, region packs and custom assets are all supported. Custom assets are grouped by the asset pack they came from.
+- **Safe retirement and uninstall**: retiring a custom zone rezones it back to game zones in the open city, with each building returned to its own game zone and empty lots given the zone's base zone. Retired zones can be restored or deleted. "Prepare for uninstall" (in Options) does this for every custom zone in a city, for safe removal.
+- **Translations**: 12 languages, machine translated; corrections welcome.
 
-# Every building you have
-Vanilla, DLC, region packs and custom assets. Custom assets are grouped by the pack they came from.
+# Use
+1. Open the panel with the zoning button in the top-left toolbar, or press Shift+Z (rebindable in Options).
+2. Create a zone, set its rules, review the buildings, and Apply.
+3. Paint the zone from the "Real Zoning" tab of the zoning toolbar.
 
-# Works like a game zone
-Each zone is based on a game zone and shares its demand, services and icon. Buildings level up within the zone's rules and keep the same design where they can. If you tighten a zone's rules, buildings that no longer fit are condemned and replaced, as the game does.
+Zones are saved in ModsData\RealZoningBuildingThemes\zones.json and shared by all your cities. Where you paint them is saved with each city.
 
-# Managing zones
-Open the panel with the building button at the top left. Create, duplicate, retire, restore and delete zones. Zones are shared by all your cities; where you paint them is saved with each city.
+# Requirements
+- **Unified Icon Library**: required for the zone type icons.
 
 # Compatibility
-- Plop the Growables: supported. Plopped buildings are left alone and its despawn setting is honoured.
-- Find It: works alongside it.
-- Zone Organizer: supported. Custom zones keep their own tab.
-- Requires Unified Icon Library.
+- **Plop the Growables**: supported. Its plopped buildings are left alone, and its despawn setting is honored.
+- **Zone Organizer**: supported. Custom zones stay in a separate tab.
+- **Platter**: mostly works. Custom zones can be painted on parcels created by Platter and the appropriate buildings will grow; however, Platter's building counts will show 0 for each configuration.
 
-# Before uninstalling
-Saves store painted cells by zone. Before removing the mod, open each city, press **Prepare for uninstall** at the bottom of the zone list, and save. Otherwise those cells load unzoned and their buildings are condemned.
+# Uninstalling
+Before removing the mod, open each city, go to Options &gt; Real Zoning &amp; Building Themes and press **Prepare for uninstall**, then save. Otherwise any custom-zoned cells load unzoned and their buildings are condemned.
 
-# Translations
-English, German, French, Spanish, Italian, Polish, Brazilian Portuguese, Russian, Japanese, Korean, and Simplified and Traditional Chinese. All but English are machine translated; corrections are welcome.
+Deleting a zone hides it but keeps it registered, so other cities that use it still load safely.
 
-# Credits
+# Credits and license
+Code was written by Claude Opus 5.5, with extensive human oversight in every step in the process. Results have been tested on multiple heavily-modded cities without issue.
+
 Includes code adapted from Plop the Growables by algernon (Apache 2.0) and Custom Zones by dvovo (MIT). Inspired by Building Themes by boformer.
+
+This mod is released under the MIT License.
 	</LongDescription>
 	<!--Thumbnail-->
 	<Thumbnail Value="Properties/Thumbnail.png" />
