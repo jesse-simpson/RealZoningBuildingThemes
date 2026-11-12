@@ -67,5 +67,5 @@ This mod is released under the MIT License.
 	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog Value="First release." />
 	<!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "twitter", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme", "bluesky"-->
-	<!--<ExternalLink Type="github" Url="" />-->
+	<ExternalLink Type="github" Url="https://github.com/jesse-simpson/RealZoningBuildingThemes" />
 </Publish>
