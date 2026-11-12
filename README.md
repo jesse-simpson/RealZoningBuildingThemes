@@ -1,6 +1,6 @@
 # Real Zoning & Building Themes
 
-A Cities: Skylines II mod in the spirit of Building Themes from Cities Skylines 1. Create zones with custom rules, choose exactly which buildings grow in each, and paint them with normal zoning tools.
+A Cities: Skylines II mod in the spirit of Building Themes from the original Cities: Skylines. Create zones with custom rules, choose exactly which buildings grow in each, and paint them with normal zoning tools.
 
 Tired of micromanaging 20 different zone types or plopping buildings by hand to get a range of buildings and realistic cities? Want to allow both residential and commercial buildings in the same zone? Want to finely control building heights? Then this mod is for you. It adds the ability to easily zone for any available building using a set of basic zoning rules, and then customize the buildings chosen to your heart's content.
 
@@ -89,7 +89,7 @@ For the same reason, deleted zones stay registered.
 
 Requires the Cities: Skylines II modding toolchain. Build the panel with `npm install` and `npm run build` in `RealZoningBuildingThemes\UI\`, then build the project in Visual Studio. The UI is copied into the mod folder on build.
 
-## Credits and licence
+## Credits and license
 
 Code was written by Claude Opus 5.5, with extensive human oversight in every step in the process. Results have been tested on multiple heavily-modded cities without issue.
 
