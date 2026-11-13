@@ -10,7 +10,9 @@ namespace RealZoningBuildingThemes.Zones
     /// named "Placemaker Shape ...", with the same home zone. Our allow-lists name designs, not
     /// copies, so without this a reshaped building looked like one the zone does not allow, and
     /// was condemned. Here each copy is traced back to the design it was made from, through
-    /// Placemaker's own ShapeSystem.BaseOf, so it is treated exactly like that design.
+    /// Placemaker's own ShapeSystem.BaseOf, so it is allowed wherever that design is. Copies are
+    /// never grown or chosen for level-ups as designs of their own, and a reshaped building's own
+    /// level-ups are left to the game and Placemaker.
     ///
     /// Found by name at run time, so the mod neither needs nor references Placemaker; without it
     /// every prefab is its own base.
@@ -24,6 +26,7 @@ namespace RealZoningBuildingThemes.Zones
         private static MethodInfo s_BaseOfMethod;
         private static Func<Entity, Entity> s_BaseOf;
         private static bool s_Logged;
+        private static bool s_LoggedOdd;
 
         /// <summary>The design a Placemaker shape copy was made from; the prefab itself otherwise.</summary>
         public static Entity BaseOf(World world, Entity prefab)
@@ -34,15 +37,54 @@ namespace RealZoningBuildingThemes.Zones
                 return prefab;
             }
 
+            Entity result;
             try
             {
-                Entity result = baseOf(prefab);
-                return result == Entity.Null ? prefab : result;
+                result = baseOf(prefab);
             }
             catch (Exception)
             {
                 return prefab;
             }
+
+            if (result == Entity.Null || result == prefab)
+            {
+                return prefab;
+            }
+
+            // Placemaker is in beta and may change: only trust an answer that makes sense, a
+            // growable design with the copy's own game zone and lot size. Anything else is ignored,
+            // and the prefab is treated as itself (as in versions before this compatibility).
+            if (!LooksLikeBase(world.EntityManager, prefab, result))
+            {
+                if (!s_LoggedOdd)
+                {
+                    s_LoggedOdd = true;
+                    Mod.log.Warn("PlacemakerCompat: Placemaker named a design for one of its copies that does not match it (game zone or lot size); such answers are ignored.");
+                }
+
+                return prefab;
+            }
+
+            return result;
+        }
+
+        private static bool LooksLikeBase(EntityManager em, Entity copy, Entity design)
+        {
+            if (!em.Exists(design) ||
+                !em.HasComponent<Game.Prefabs.BuildingData>(copy) || !em.HasComponent<Game.Prefabs.BuildingData>(design) ||
+                !em.HasComponent<Game.Prefabs.SpawnableBuildingData>(copy) || !em.HasComponent<Game.Prefabs.SpawnableBuildingData>(design))
+            {
+                return false;
+            }
+
+            if (!em.GetComponentData<Game.Prefabs.BuildingData>(copy).m_LotSize.Equals(em.GetComponentData<Game.Prefabs.BuildingData>(design).m_LotSize))
+            {
+                return false;
+            }
+
+            return em.GetComponentData<Game.Prefabs.SpawnableBuildingData>(copy).m_ZonePrefab ==
+                em.GetComponentData<Game.Prefabs.SpawnableBuildingData>(design).m_ZonePrefab;
         }
 
         /// <summary>True when Placemaker's shapes are loaded (its system exists in this world).</summary>
