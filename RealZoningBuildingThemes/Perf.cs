@@ -8,7 +8,8 @@ namespace RealZoningBuildingThemes
     /// <summary>
     /// TEMPORARY performance check (perf-check branch). Each of the mod's systems reports how long
     /// its update took on the main thread; every five minutes of real time the totals go to the log,
-    /// per system and per frame. Entries named "probe: ..." are sampled timings of the spawner's
+    /// per system and per frame. Entries named "part: ..." break one system's time down (already
+    /// counted in that system, so left out of the total). Entries named "probe: ..." are sampled timings of the spawner's
     /// background jobs (the probe waits for them, so those passes stall briefly); they are reported
     /// separately and left out of the main-thread total. Remove before release.
     /// </summary>
@@ -68,7 +69,7 @@ namespace RealZoningBuildingThemes
             var sb = new StringBuilder();
             sb.Append($"Perf: last {seconds / 60:0.#} min, {frames} frames ({frames / seconds:0.#} fps on average). Main-thread time by system:");
             double sum = 0;
-            foreach (var kv in s_Stats.Where(k => !k.Key.StartsWith("probe")).OrderByDescending(k => k.Value.Total))
+            foreach (var kv in s_Stats.Where(k => !k.Key.StartsWith("probe") && !k.Key.StartsWith("part")).OrderByDescending(k => k.Value.Total))
             {
                 Stat s = kv.Value;
                 sum += s.Total;
@@ -76,6 +77,12 @@ namespace RealZoningBuildingThemes
             }
 
             sb.Append($"\n  All mod systems: {sum / frames:0.####} ms per frame, {sum / (seconds * 1000) * 100:0.###}% of real time");
+            foreach (var kv in s_Stats.Where(k => k.Key.StartsWith("part")).OrderBy(k => k.Key))
+            {
+                Stat s = kv.Value;
+                sb.Append($"\n  {kv.Key}: {s.Calls} runs, {s.Total / s.Calls:0.###} ms avg, {s.Max:0.##} ms max, {s.Total / frames:0.####} ms per frame");
+            }
+
             foreach (var kv in s_Stats.Where(k => k.Key.StartsWith("probe")).OrderBy(k => k.Key))
             {
                 Stat s = kv.Value;

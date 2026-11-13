@@ -167,6 +167,7 @@ namespace RealZoningBuildingThemes.Zones
         // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
         private void OnUpdateTimed()
         {
+            long partStart = Perf.Start(); // TEMPORARY (perf-check)
             m_Frame++;
             if (m_MaterialsQuery.IsEmptyIgnoreFilter && m_MaterialsChecked.Count > 0)
             {
@@ -181,24 +182,33 @@ namespace RealZoningBuildingThemes.Zones
                 Prune();
             }
 
+            Perf.Stop("part: level-ups, query checks and pruning", partStart); // TEMPORARY (perf-check)
+
             if (haveMaterials || haveConstruction || checkMissed)
             {
                 m_HaveTree = false;
                 try
                 {
+                    // TEMPORARY (perf-check): each step timed on its own.
                     if (haveMaterials)
                     {
+                        long t = Perf.Start();
                         CheckMaterialRequests();
+                        Perf.Stop("part: level-ups, 1 new materials requests", t);
                     }
 
                     if (checkMissed)
                     {
+                        long t = Perf.Start();
                         CheckMissedLevelUps();
+                        Perf.Stop("part: level-ups, 2 missed level-ups", t);
                     }
 
                     if (haveConstruction)
                     {
+                        long t = Perf.Start();
                         CheckLevelUps();
+                        Perf.Stop("part: level-ups, 3 the game's level-up choices", t);
                     }
                 }
                 catch (System.Exception e)
@@ -238,9 +248,11 @@ namespace RealZoningBuildingThemes.Zones
             {
                 if (!m_HaveTree)
                 {
+                    long t = Perf.Start(); // TEMPORARY (perf-check)
                     m_Tree = m_ZoneSearch.GetSearchTree(true, out JobHandle deps);
                     deps.Complete();
                     m_HaveTree = true;
+                    Perf.Stop("part: level-ups, waiting for the game's zone data", t);
                 }
 
                 return m_Tree;
@@ -473,11 +485,15 @@ namespace RealZoningBuildingThemes.Zones
 
             var lot = EntityManager.GetComponentData<BuildingData>(current).m_LotSize;
             var transform = EntityManager.GetComponentData<Transform>(building);
-            using (LotCells cells = LotCells.Read(EntityManager, Tree, transform, lot))
+            NativeQuadTree<Entity, Bounds2> tree = Tree;
+            long lotStart = Perf.Start(); // TEMPORARY (perf-check)
+            using (LotCells cells = LotCells.Read(EntityManager, tree, transform, lot))
             {
                 zone = OurZoneOf(cells);
                 maxHeight = cells.MaxHeight;
             }
+
+            Perf.Stop("part: level-ups, reading a lot's zone cells", lotStart);
 
             return zone != null;
         }
@@ -545,6 +561,20 @@ namespace RealZoningBuildingThemes.Zones
         /// fit as the game's choice does. Entity.Null when there is none.
         /// </summary>
         private Entity ChooseNext(Entity current, BuildingInfo from, Entity gameChoice, AllowListSystem.ZoneRules zone, float maxHeight)
+        {
+            // TEMPORARY (perf-check): timed wrapper.
+            long t = Perf.Start();
+            try
+            {
+                return ChooseNextTimed(current, from, gameChoice, zone, maxHeight);
+            }
+            finally
+            {
+                Perf.Stop("part: level-ups, choosing the next building", t);
+            }
+        }
+
+        private Entity ChooseNextTimed(Entity current, BuildingInfo from, Entity gameChoice, AllowListSystem.ZoneRules zone, float maxHeight)
         {
             if (zone.Definition == null || from.Level >= 5)
             {

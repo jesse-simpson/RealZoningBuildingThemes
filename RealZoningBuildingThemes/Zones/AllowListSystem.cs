@@ -31,6 +31,7 @@ namespace RealZoningBuildingThemes.Zones
         }
 
         private static bool s_RebuildRequested;
+        private int m_Updates;
 
         private PrefabSystem m_PrefabSystem;
         private EntityQuery m_BuildingQuery;
@@ -112,6 +113,13 @@ namespace RealZoningBuildingThemes.Zones
         // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
         private void OnUpdateTimed()
         {
+            // Counting every building prefab is the costly part, and new prefabs (assets, zones made
+            // in the panel) only appear now and then: look every 16 updates, at once on request.
+            if (!s_RebuildRequested && (++m_Updates & 15) != 0)
+            {
+                return;
+            }
+
             int buildings = m_BuildingQuery.CalculateEntityCount();
             int zones = m_OurZonesQuery.CalculateEntityCount();
             bool buildingsChanged = buildings != m_LastBuildingCount;
