@@ -80,6 +80,7 @@ namespace RealZoningBuildingThemes.Zones
         // Reused lists, so the per-update checks allocate nothing.
         private readonly List<Entity> m_Done = new List<Entity>();
         private readonly List<Entity> m_Arrived = new List<Entity>();
+        private readonly List<(Entity building, UnderConstruction construction, Entity current)> m_Pending = new List<(Entity, UnderConstruction, Entity)>();
 
         // The game's zone search tree, fetched only when a decision needs it and at most once
         // per update: fetching it waits for the game's zone jobs, which is the costly part.
@@ -405,29 +406,44 @@ namespace RealZoningBuildingThemes.Zones
         /// <summary>Point 2: replace or cancel the game's level-up choice.</summary>
         private void CheckLevelUps()
         {
-            // Level-ups only: their new prefab differs from the current one (new buildings
-            // under construction have none).
-            var pending = new List<(Entity building, UnderConstruction construction, Entity current)>();
+            var pending = m_Pending;
+            pending.Clear();
+
+            // Read the changed chunks in bulk (three copies) rather than building by building:
+            // construction progress marks every building under construction as changed on every
+            // update, and almost all of them are new buildings, not level-ups.
             var entities = m_UnderConstructionQuery.ToEntityArray(Allocator.Temp);
+            var constructions = m_UnderConstructionQuery.ToComponentDataArray<UnderConstruction>(Allocator.Temp);
+            var prefabs = m_UnderConstructionQuery.ToComponentDataArray<PrefabRef>(Allocator.Temp);
             try
             {
                 for (int i = 0; i < entities.Length; i++)
                 {
-                    Entity building = entities[i];
-                    var construction = EntityManager.GetComponentData<UnderConstruction>(building);
-                    Entity current = EntityManager.GetComponentData<PrefabRef>(building).m_Prefab;
-                    // Construction progress changes these chunks every update; a level-up already
-                    // looked at is skipped unless its target prefab changed since.
-                    if (construction.m_NewPrefab != Entity.Null && construction.m_NewPrefab != current &&
-                        !(m_Approved.TryGetValue(building, out Entity approved) && approved == construction.m_NewPrefab))
+                    UnderConstruction construction = constructions[i];
+                    Entity current = prefabs[i].m_Prefab;
+
+                    // Level-ups only: their new prefab differs from the current one (new buildings
+                    // under construction have none). One already looked at is skipped unless its
+                    // target prefab changed since.
+                    if (construction.m_NewPrefab == Entity.Null || construction.m_NewPrefab == current)
                     {
-                        pending.Add((building, construction, current));
+                        continue;
                     }
+
+                    Entity building = entities[i];
+                    if (m_Approved.TryGetValue(building, out Entity approved) && approved == construction.m_NewPrefab)
+                    {
+                        continue;
+                    }
+
+                    pending.Add((building, construction, current));
                 }
             }
             finally
             {
                 entities.Dispose();
+                constructions.Dispose();
+                prefabs.Dispose();
             }
 
             foreach (var (building, construction, current) in pending)
