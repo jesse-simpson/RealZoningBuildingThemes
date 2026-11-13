@@ -10,7 +10,8 @@ Tired of micromanaging 20 different zone types or plopping buildings by hand to 
 - **Zoning rules**: restrict what grows by its use, theme or region pack, height, lot width and depth, side setbacks, and parking.
 - **Per-building control**: include or exclude any building by hand, with thumbnails and filters.
 - **All sources**: vanilla, DLC, region packs and custom assets are all supported. Custom assets are grouped by the asset pack they came from.
-- **Safe retirement and uninstall**: retiring a custom zone rezones it back to game zones in the open city, with each building returned to its own game zone and empty lots given the zone's base zone. Retired zones can be restored or deleted. "Prepare for uninstall" (in Options) does this for every custom zone in a city, for safe removal.
+- **Saves that survive without the mod**: every save, autosaves included, is written with game zones in place of custom zones, so a city loads safely even if the mod is removed, broken by a game update, or no longer maintained. Your custom zones come back on load while the mod is installed.
+- **Safe retirement and uninstall**: retiring a custom zone rezones it back to game zones in the open city, with each building returned to its own game zone and empty lots given the zone's base zone. Retired zones can be restored or deleted. "Prepare for uninstall" (in Options) does this for every custom zone in a city, to make the change permanent.
 - **Translations**: 12 languages, machine translated; corrections welcome.
 
 ## Use
@@ -33,7 +34,9 @@ Zones are saved in `ModsData\RealZoningBuildingThemes\zones.json` and shared by 
 
 ## Uninstalling
 
-Before removing the mod, open each city, go to Options > Real Zoning & Building Themes and press **Prepare for uninstall**, then save. Otherwise any custom-zoned cells load unzoned and their buildings are condemned.
+Cities saved with this version load safely without the mod: custom-zoned areas come back as game zones, with every building on its own game zone, so nothing is demolished. Empty lots there grow buildings of the zone's base zone. Saving the city without the mod makes that permanent; with the mod installed again before that, the custom zones come back.
+
+Cities last saved with version 1.0.1 or earlier are not protected until they are saved once with this version. To make a city's game zones permanent while the mod is installed, go to Options > Real Zoning & Building Themes and press **Prepare for uninstall**, then save.
 
 Deleting a zone hides it but keeps it registered, so other cities that use it still load safely.
 
@@ -72,6 +75,8 @@ This is what lets one zone mix themes, densities, and uses such as residential a
 - empty cells take the zone's base zone.
 
 For the same reason, deleted zones stay registered.
+
+**Saves.** Every save is written in that same layout, without changing the city being played. Just before the game writes a save (it does so in its own step, with the simulation stopped), the mod rewrites the custom-zone cells as above, gives the free lots on those blocks the base zone, and pauses level-ups in progress to a design from another game zone, since those would finish on the wrong zone without the mod. A record of what changed is saved as the mod's own save data, which the game skips when the mod is missing. Right after the save is written, everything is put back exactly. On load, the record puts the custom zones and the paused level-ups back, matching zones and designs by name; a cell is only put back if it still holds the game zone the save wrote.
 
 **Panel.** The zone panel is a React module built with the game's UI modding toolchain. It talks to the C# side through bindings in the `rzbt` group. It receives the whole building index, so it can preview rule changes and building counts live before you Apply.
 

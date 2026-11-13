@@ -74,6 +74,14 @@ namespace RealZoningBuildingThemes
             updateSystem.UpdateAfter<RemovalSystem, AllowListSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateBefore<LevelUpSwapSystem, Game.Simulation.BuildingConstructionSystem>(SystemUpdatePhase.GameSimulation);
 
+            // Saves that load safely without the mod. Just before the game writes a save, our zones'
+            // cells are written as game zones (and cross-zone level-ups paused), with a record of
+            // the changes saved as SaveSwapSystem's own data; right after, everything is put back.
+            // On load, the record puts our zones back once the game has matched the save's prefabs.
+            updateSystem.UpdateBefore<SaveSwapSystem, Game.Serialization.BeginPrefabSerializationSystem>(SystemUpdatePhase.Serialize);
+            updateSystem.UpdateAfter<SaveRestoreSystem, Game.Serialization.SerializerSystem>(SystemUpdatePhase.Serialize);
+            updateSystem.UpdateAfter<LoadRestoreSystem, Game.Serialization.ResolvePrefabsSystem>(SystemUpdatePhase.Deserialize);
+
             // Phase 4: the zone panel's bindings (the panel itself is the UI module built from UI\).
             updateSystem.UpdateAt<ZonePanelUISystem>(SystemUpdatePhase.UIUpdate);
         }
