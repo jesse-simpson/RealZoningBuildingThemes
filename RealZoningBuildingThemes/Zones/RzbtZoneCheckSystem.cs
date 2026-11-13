@@ -211,16 +211,28 @@ namespace RealZoningBuildingThemes.Zones
             }
         }
 
-        private bool m_SearchedPlop;
+        // Updates until the next look for Plop the Growables' check. It is looked for again until
+        // found, and at once when a city finishes loading: this system can first run before other
+        // mods have created their systems (seen 2026-11-13: it ran 17 s after start, found
+        // nothing, took over the game's check, and Plop the Growables' check then ran alongside
+        // it, condemning buildings on our zones that the pardon pass had to lift).
+        private int m_PlopSearchWait;
+        private const int kPlopSearchInterval = 300;
+
+        protected override void OnGameLoadingComplete(Colossal.Serialization.Entities.Purpose purpose, GameMode mode)
+        {
+            base.OnGameLoadingComplete(purpose, mode);
+            m_PlopSearchWait = 0;
+        }
 
         private void FindPlopCheck()
         {
-            if (m_SearchedPlop)
+            if (m_PlopCheck != null || m_PlopSearchWait-- > 0)
             {
                 return;
             }
 
-            m_SearchedPlop = true;
+            m_PlopSearchWait = kPlopSearchInterval;
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (assembly.GetName().Name.IndexOf("Plop", StringComparison.OrdinalIgnoreCase) < 0)
@@ -248,9 +260,13 @@ namespace RealZoningBuildingThemes.Zones
                 if (type != null)
                 {
                     m_PlopCheck = World.GetExistingSystemManaged(type);
-                    m_PlopDespawnSetting = type.GetProperty("SpawnedZoneDespawn", BindingFlags.Public | BindingFlags.Instance);
-                    Mod.log.Info($"ZoneCheck: found Plop the Growables' zone check ({(m_PlopCheck != null ? "running" : "not running")}; despawn setting {(m_PlopDespawnSetting != null ? "found" : "not found")}).");
-                    return;
+                    if (m_PlopCheck != null)
+                    {
+                        m_PlopDespawnSetting = type.GetProperty("SpawnedZoneDespawn", BindingFlags.Public | BindingFlags.Instance);
+                        Mod.log.Info($"ZoneCheck: found Plop the Growables' zone check (despawn setting {(m_PlopDespawnSetting != null ? "found" : "not found")}).");
+                    }
+
+                    return; // not created yet: looked for again later
                 }
             }
         }

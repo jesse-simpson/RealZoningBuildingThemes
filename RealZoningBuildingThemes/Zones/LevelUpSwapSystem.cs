@@ -90,6 +90,7 @@ namespace RealZoningBuildingThemes.Zones
         // flat however big the city. A missed level-up may start a little later (well under a
         // second of game time in a large city); level-ups take minutes anyway.
         private const int kMissedPerUpdate = 48;
+        private const int kMaterialsInterval = 4;
         private const int kPrunePerUpdate = 64;
         private readonly List<Entity> m_AwaitScan = new List<Entity>();
         private int m_AwaitScanPos;
@@ -142,10 +143,6 @@ namespace RealZoningBuildingThemes.Zones
                 },
             });
 
-            // Only chunks where a materials request was added or changed are looked at; buildings
-            // already looked at are skipped (m_MaterialsChecked).
-            m_MaterialsQuery.SetChangedVersionFilter(ComponentType.ReadOnly<ResourceNeeding>());
-
             m_BuildingConfigQuery = GetEntityQuery(ComponentType.ReadOnly<BuildingConfigurationData>());
             m_AllowList = World.GetOrCreateSystemManaged<AllowListSystem>();
             m_ZoneSearch = World.GetOrCreateSystemManaged<Game.Zones.SearchSystem>();
@@ -184,7 +181,10 @@ namespace RealZoningBuildingThemes.Zones
             // TEMPORARY (perf-check): each changed-chunk check timed on its own; a change filter
             // may have to wait for the game's jobs writing that component.
             partStart = Perf.Start();
-            bool haveMaterials = !m_MaterialsQuery.IsEmpty;            // changed chunks only
+            // New materials requests are looked for every few updates by listing the buildings
+            // that have one and skipping those already looked at. A change filter here made every
+            // update wait for the game's delivery jobs to finish writing the requests.
+            bool haveMaterials = m_Frame % kMaterialsInterval == 0 && !m_MaterialsQuery.IsEmptyIgnoreFilter;
             Perf.Stop("part: level-ups, query check B (changed materials requests)", partStart);
             partStart = Perf.Start();
             bool haveConstruction = !m_UnderConstructionQuery.IsEmpty;  // changed chunks only

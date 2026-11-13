@@ -51,10 +51,13 @@ namespace RealZoningBuildingThemes.Zones
         // condemned. Without this, every condemned building in the city was re-tested on every
         // update, which cost the most exactly when many buildings were condemned.
         private readonly HashSet<Entity> m_Tested = new HashSet<Entity>();
-        private readonly List<Entity> m_Gone = new List<Entity>();
         private int m_TestedRulesVersion = -1;
-        private int m_Updates;
-        private const int kPruneInterval = 256;
+
+        // Forgetting buildings that are gone or no longer condemned is done a slice per update,
+        // in rotation, so it never stalls a frame however many buildings are remembered.
+        private readonly List<Entity> m_PruneScan = new List<Entity>();
+        private int m_PruneScanPos;
+        private const int kPrunePerUpdate = 64;
         private System.DateTime m_LastLog = System.DateTime.MinValue;
 
         protected override void OnCreate()
@@ -104,10 +107,7 @@ namespace RealZoningBuildingThemes.Zones
                 m_TestedRulesVersion = m_AllowList.RulesVersion;
             }
 
-            if (++m_Updates % kPruneInterval == 0)
-            {
-                PruneTested();
-            }
+            PruneTestedSlice();
 
             var entities = m_CondemnedQuery.ToEntityArray(Allocator.Temp);
             try
@@ -183,24 +183,24 @@ namespace RealZoningBuildingThemes.Zones
             }
         }
 
-        /// <summary>Forgets tested buildings that are gone or no longer condemned.</summary>
-        private void PruneTested()
+        /// <summary>Forgets, a slice at a time, tested buildings that are gone or no longer condemned.</summary>
+        private void PruneTestedSlice()
         {
-            m_Gone.Clear();
-            foreach (Entity building in m_Tested)
+            if (m_PruneScanPos >= m_PruneScan.Count)
             {
+                m_PruneScan.Clear();
+                m_PruneScan.AddRange(m_Tested);
+                m_PruneScanPos = 0;
+            }
+
+            for (int n = 0; n < kPrunePerUpdate && m_PruneScanPos < m_PruneScan.Count; n++, m_PruneScanPos++)
+            {
+                Entity building = m_PruneScan[m_PruneScanPos];
                 if (!EntityManager.Exists(building) || !EntityManager.HasComponent<Condemned>(building))
                 {
-                    m_Gone.Add(building);
+                    m_Tested.Remove(building);
                 }
             }
-
-            foreach (Entity building in m_Gone)
-            {
-                m_Tested.Remove(building);
-            }
-
-            m_Gone.Clear();
         }
     }
 }
