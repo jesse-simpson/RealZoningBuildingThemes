@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Game;
 using Game.Prefabs;
 using Unity.Collections;
@@ -150,6 +151,8 @@ namespace RealZoningBuildingThemes.Zones
             {
                 int failed = 0;
                 int hubs = 0;
+                var hubsBy = new Dictionary<string, int>();
+                var hubExample = new Dictionary<string, string>();
                 for (int i = 0; i < entities.Length; i++)
                 {
                     BuildingInfo info;
@@ -168,10 +171,20 @@ namespace RealZoningBuildingThemes.Zones
                         continue;
                     }
 
-                    if (BuildingIndex.IsResourceHub(info))
+                    string hubReason = BuildingIndex.HubReason(info);
+                    if (hubReason != null)
                     {
+                        // Belongs next to an extraction area, not on ordinary zoning. Counted per
+                        // reason and home zone for the log, so a wrong catch is easy to spot.
                         hubs++;
-                        continue; // belongs next to an extraction area, not on ordinary zoning
+                        string key = $"{hubReason}: {(string.IsNullOrEmpty(info.HomeZone) ? "(none)" : info.HomeZone)}";
+                        hubsBy[key] = hubsBy.TryGetValue(key, out int seen) ? seen + 1 : 1;
+                        if (!hubExample.ContainsKey(key))
+                        {
+                            hubExample[key] = info.Name;
+                        }
+
+                        continue;
                     }
 
                     m_Index.Add(info);
@@ -185,7 +198,11 @@ namespace RealZoningBuildingThemes.Zones
 
                 if (hubs > 0)
                 {
-                    Mod.log.Info($"AllowList: left out {hubs} specialized-industry hub buildings (they belong next to extraction areas).");
+                    Mod.log.Info($"AllowList: left out {hubs} specialized-industry hub buildings (they belong next to extraction areas):");
+                    foreach (var kv in hubsBy.OrderByDescending(k => k.Value))
+                    {
+                        Mod.log.Info($"AllowList:   {kv.Value} by {kv.Key} (e.g. '{hubExample[kv.Key]}')");
+                    }
                 }
             }
             finally

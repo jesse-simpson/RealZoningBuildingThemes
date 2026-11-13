@@ -16,6 +16,7 @@ namespace RealZoningBuildingThemes.Zones
         public string Name;
         public string Family;     // name without its _L1.._L5 level
         public string HomeZone;
+        public bool HomeZonePaintable; // the home zone is on the zoning toolbar (hub zones are placed by extraction areas)
         public string Use;        // one of ZoneLibrary.UseKeys
         public string Theme;      // zone prefix such as EU or UK; empty for shared base-game buildings
         public List<string> Packs = new List<string>();
@@ -84,24 +85,42 @@ namespace RealZoningBuildingThemes.Zones
         /// </summary>
         private static readonly string[] s_HubZoneWords = { "Forestry", "Agriculture", "Ore", "Oil", "Aquaculture", "Fishing" };
 
-        /// <summary>True for buildings of the game's specialized-industry hub zones; they are left out of the index.</summary>
-        public static bool IsResourceHub(BuildingInfo info)
+        /// <summary>
+        /// Why an industrial (non-office) building counts as a specialized-industry hub, or null if
+        /// it does not. Hubs belong next to the matching extraction area, so they are left out of
+        /// the index: its home zone is one of the resource hub zones; or its home zone is not on
+        /// the zoning toolbar (hub zones are placed by extraction areas, not painted); or "Hub" is
+        /// in its name (some hub sets use ordinary industrial zoning).
+        /// </summary>
+        public static string HubReason(BuildingInfo info)
         {
-            if ((info.Use != "iman" && info.Use != "iware") || string.IsNullOrEmpty(info.HomeZone) ||
-                !info.HomeZone.StartsWith("Industrial ", StringComparison.Ordinal))
+            if (info.Use != "iman" && info.Use != "iware")
             {
-                return false;
+                return null;
             }
 
-            foreach (string word in s_HubZoneWords)
+            if (!string.IsNullOrEmpty(info.HomeZone) && info.HomeZone.StartsWith("Industrial ", StringComparison.Ordinal))
             {
-                if (System.Text.RegularExpressions.Regex.IsMatch(info.HomeZone, $"\\b{word}\\b"))
+                foreach (string word in s_HubZoneWords)
                 {
-                    return true;
+                    if (Regex.IsMatch(info.HomeZone, $"\\b{word}\\b"))
+                    {
+                        return "hub zone";
+                    }
                 }
             }
 
-            return false;
+            if (!info.HomeZonePaintable)
+            {
+                return "home zone not paintable";
+            }
+
+            if (Regex.IsMatch(info.Name ?? string.Empty, "Hub", RegexOptions.IgnoreCase))
+            {
+                return "named hub";
+            }
+
+            return null;
         }
 
         private static string CanonicalTheme(string key) => key != null && s_ThemeAliases.TryGetValue(key, out string canonical) ? canonical : key;
@@ -129,6 +148,7 @@ namespace RealZoningBuildingThemes.Zones
             info.Level = spawnable.m_Level;
             Entity zone = spawnable.m_ZonePrefab;
             info.HomeZone = zone != Entity.Null && em.Exists(zone) ? prefabs.GetPrefabName(zone) : string.Empty;
+            info.HomeZonePaintable = zone != Entity.Null && em.Exists(zone) && em.HasComponent<UIObjectData>(zone);
             info.Theme = ThemeOf(info.HomeZone);
             info.Use = UseOf(em, zone, info.HomeZone, info.Name, entity);
 
