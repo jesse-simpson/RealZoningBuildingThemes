@@ -453,7 +453,8 @@ namespace RealZoningBuildingThemes.Zones
         {
             zone = null;
             maxHeight = float.PositiveInfinity;
-            from = m_AllowList.GetInfo(current);
+            // A building Placemaker reshaped stands on a copy of its design: level it up as that design.
+            from = m_AllowList.GetInfo(m_AllowList.BaseOf(current));
             if (from == null || !EntityManager.HasComponent<BuildingData>(current) || PlopCompat.IsPlopped(EntityManager, building))
             {
                 return false;

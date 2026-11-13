@@ -45,6 +45,12 @@ namespace RealZoningBuildingThemes.Zones
         private readonly Dictionary<Entity, BuildingInfo> m_InfoByEntity = new Dictionary<Entity, BuildingInfo>();
         private readonly Dictionary<ushort, ZoneRules> m_RulesByIndex = new Dictionary<ushort, ZoneRules>();
 
+        // Placemaker's reshaped copies of designs, with the design each was made from (see
+        // PlacemakerCompat), and every building prefab seen by the last index (designs, copies,
+        // hubs and broken ones alike), to tell new copies from new designs.
+        private readonly Dictionary<Entity, Entity> m_VariantBase = new Dictionary<Entity, Entity>();
+        private readonly HashSet<Entity> m_Known = new HashSet<Entity>();
+
         /// <summary>Every growable, as last indexed (empty until a city has loaded).</summary>
         public IReadOnlyList<BuildingInfo> Index => m_Index;
 
@@ -67,6 +73,12 @@ namespace RealZoningBuildingThemes.Zones
         public List<ushort> GetAllowingZones(Entity buildingPrefab)
         {
             return m_ZonesByBuilding.TryGetValue(buildingPrefab, out var zones) ? zones : null;
+        }
+
+        /// <summary>The design a building prefab stands for: itself, or for a Placemaker reshaped copy, the design it was made from.</summary>
+        public Entity BaseOf(Entity buildingPrefab)
+        {
+            return m_VariantBase.TryGetValue(buildingPrefab, out Entity design) ? design : buildingPrefab;
         }
 
         /// <summary>The index entry of a growable prefab, or null.</summary>
@@ -115,9 +127,18 @@ namespace RealZoningBuildingThemes.Zones
                 return;
             }
 
+            bool rebuildRequested = s_RebuildRequested;
+            int lastZones = m_LastZoneCount;
             m_LastBuildingCount = buildings;
             m_LastZoneCount = zones;
             s_RebuildRequested = false;
+
+            // Placemaker makes a new copy of a design each time it reshapes one in a new way. Those
+            // only need adding to the allow-lists of their design, not a whole new index.
+            if (buildingsChanged && !rebuildRequested && zones == lastZones && TryAddVariantsOnly())
+            {
+                return;
+            }
 
             if (buildingsChanged)
             {
@@ -127,11 +148,84 @@ namespace RealZoningBuildingThemes.Zones
             ApplyRules();
         }
 
+        /// <summary>
+        /// When every building prefab new since the last index is a Placemaker copy, adds them to
+        /// the allow-lists of their designs and returns true; otherwise false (a full rebuild is due).
+        /// </summary>
+        private bool TryAddVariantsOnly()
+        {
+            if (m_Known.Count == 0 || !PlacemakerCompat.Available(World))
+            {
+                return false;
+            }
+
+            var added = new List<(Entity variant, Entity design)>();
+            var entities = m_BuildingQuery.ToEntityArray(Allocator.Temp);
+            try
+            {
+                if (entities.Length < m_Known.Count)
+                {
+                    return false; // prefabs were removed
+                }
+
+                for (int i = 0; i < entities.Length; i++)
+                {
+                    Entity e = entities[i];
+                    if (m_Known.Contains(e))
+                    {
+                        continue;
+                    }
+
+                    Entity design = PlacemakerCompat.BaseOf(World, e);
+                    if (design == e)
+                    {
+                        return false; // a new design, not a copy
+                    }
+
+                    added.Add((e, design));
+                }
+            }
+            finally
+            {
+                entities.Dispose();
+            }
+
+            foreach (var (variant, design) in added)
+            {
+                m_Known.Add(variant);
+                m_VariantBase[variant] = design;
+                AllowVariant(variant, design);
+            }
+
+            RulesVersion++;
+            return true;
+        }
+
+        /// <summary>A Placemaker copy is allowed wherever its design is (for the zone check, pardon and removal; never grown as such).</summary>
+        private void AllowVariant(Entity variant, Entity design)
+        {
+            if (!m_ZonesByBuilding.TryGetValue(design, out List<ushort> zones))
+            {
+                return;
+            }
+
+            m_ZonesByBuilding[variant] = zones;
+            foreach (ushort zone in zones)
+            {
+                if (m_RulesByIndex.TryGetValue(zone, out ZoneRules rules))
+                {
+                    rules.AllowedSet.Add(variant);
+                }
+            }
+        }
+
         private void RebuildIndex()
         {
             var timer = System.Diagnostics.Stopwatch.StartNew();
             m_Index.Clear();
             m_InfoByEntity.Clear();
+            m_VariantBase.Clear();
+            m_Known.Clear();
             var entities = m_BuildingQuery.ToEntityArray(Allocator.Temp);
             try
             {
@@ -141,6 +235,17 @@ namespace RealZoningBuildingThemes.Zones
                 var hubExample = new Dictionary<string, string>();
                 for (int i = 0; i < entities.Length; i++)
                 {
+                    m_Known.Add(entities[i]);
+
+                    // A Placemaker reshaped copy is not a design of its own: it counts as the
+                    // design it was made from (allowed where that is), and is never grown as such.
+                    Entity design = PlacemakerCompat.BaseOf(World, entities[i]);
+                    if (design != entities[i])
+                    {
+                        m_VariantBase[entities[i]] = design;
+                        continue;
+                    }
+
                     BuildingInfo info;
                     try
                     {
@@ -210,7 +315,7 @@ namespace RealZoningBuildingThemes.Zones
                 }
             }
 
-            Mod.log.Info($"AllowList: indexed {m_Index.Count} growables in {timer.ElapsedMilliseconds} ms ({custom} custom assets from {sources.Count} sources).");
+            Mod.log.Info($"AllowList: indexed {m_Index.Count} growables in {timer.ElapsedMilliseconds} ms ({custom} custom assets from {sources.Count} sources){(m_VariantBase.Count > 0 ? $"; {m_VariantBase.Count} Placemaker reshaped copies count as their designs" : string.Empty)}.");
         }
 
         private void ApplyRules()
@@ -271,6 +376,11 @@ namespace RealZoningBuildingThemes.Zones
             finally
             {
                 zoneEntities.Dispose();
+            }
+
+            foreach (KeyValuePair<Entity, Entity> kv in m_VariantBase)
+            {
+                AllowVariant(kv.Key, kv.Value);
             }
 
             RulesVersion++;
