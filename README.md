@@ -34,9 +34,9 @@ Zones are saved in `ModsData\RealZoningBuildingThemes\zones.json` and shared by 
 
 ## Uninstalling
 
-Cities saved with this version load safely without the mod: custom-zoned areas come back as game zones, with every building on its own game zone, so nothing is demolished. Empty lots there grow buildings of the zone's base zone. Saving the city without the mod makes that permanent; with the mod installed again before that, the custom zones come back.
+Cities saved with version 1.0.2 or later load safely without the mod: custom-zoned areas come back as game zones, with every building on its own game zone, so nothing is demolished. Empty lots there grow buildings of the zone's base zone. Saving the city without the mod makes that permanent; with the mod installed again before that, the custom zones come back.
 
-Cities last saved with version 1.0.1 or earlier are not protected until they are saved once with this version. To make a city's game zones permanent while the mod is installed, go to Options > Real Zoning & Building Themes and press **Prepare for uninstall**, then save.
+Cities last saved with an earlier version are not protected until they are saved once with 1.0.2 or later. To make a city's game zones permanent while the mod is installed, go to Options > Real Zoning & Building Themes and press **Prepare for uninstall**, then save.
 
 Deleting a zone hides it but keeps it registered, so other cities that use it still load safely.
 

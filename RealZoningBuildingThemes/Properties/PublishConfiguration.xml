@@ -16,7 +16,8 @@ Tired of micromanaging 20 different zone types or plopping buildings by hand to 
 - **Zoning rules**: restrict what grows by its use, theme or region pack, height, lot width and depth, side setbacks, and parking.
 - **Per-building control**: include or exclude any building by hand, with thumbnails and filters.
 - **All sources**: vanilla, DLC, region packs and custom assets are all supported. Custom assets are grouped by the asset pack they came from.
-- **Safe retirement and uninstall**: retiring a custom zone rezones it back to game zones in the open city, with each building returned to its own game zone and empty lots given the zone's base zone. Retired zones can be restored or deleted. "Prepare for uninstall" (in Options) does this for every custom zone in a city, for safe removal.
+- **Saves that survive without the mod**: every save, autosaves included, is written with game zones in place of custom zones, so a city loads safely even if the mod is removed, broken by a game update, or no longer maintained. Your custom zones come back on load while the mod is installed.
+- **Safe retirement and uninstall**: retiring a custom zone rezones it back to game zones in the open city, with each building returned to its own game zone and empty lots given the zone's base zone. Retired zones can be restored or deleted. "Prepare for uninstall" (in Options) does this for every custom zone in a city, to make the change permanent.
 - **Translations**: 12 languages, machine translated; corrections welcome.
 
 # Use
@@ -35,7 +36,9 @@ Zones are saved in ModsData\RealZoningBuildingThemes\zones.json and shared by al
 - **Platter**: mostly works. Custom zones can be painted on parcels created by Platter and the appropriate buildings will grow; however, Platter's building counts will show 0 for each configuration.
 
 # Uninstalling
-Before removing the mod, open each city, go to Options &gt; Real Zoning &amp; Building Themes and press **Prepare for uninstall**, then save. Otherwise any custom-zoned cells load unzoned and their buildings are condemned.
+Cities saved with version 1.0.2 or later load safely without the mod: custom-zoned areas come back as game zones, with every building on its own game zone, so nothing is demolished. Empty lots there grow buildings of the zone's base zone. Saving the city without the mod makes that permanent; with the mod installed again before that, the custom zones come back.
+
+Cities last saved with an earlier version are not protected until they are saved once with 1.0.2 or later. To make a city's game zones permanent while the mod is installed, go to Options &gt; Real Zoning &amp; Building Themes and press **Prepare for uninstall**, then save.
 
 Deleting a zone hides it but keeps it registered, so other cities that use it still load safely.
 
@@ -57,7 +60,7 @@ This mod is released under the MIT License.
 	<!--Link to the forum post where the mod can be discussed-->
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/real-zoning-building-themes.1949785/" />
 	<!--Version of the mod-->
-	<ModVersion Value="1.0.1" />
+	<ModVersion Value="1.0.2" />
 	<!--Recommended version of the base game to use the mod-->
 	<GameVersion Value="1.6.*" />
 	<!--Dependency for the mod, can be set multiple times-->
@@ -66,12 +69,11 @@ This mod is released under the MIT License.
 	<RequiredDLC Value="" />
 	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-**1.0.1**
-- Much faster: in testing on a large city at top speed, the mod's main-thread cost fell from up to 7 ms per frame in 1.0.0 to about 1 ms during heavy growth and rezoning, and to about 0.5 ms in normal play (under 1 fps). The zone check now runs as background jobs like the game's own, and level-up control does work only when something changes.
-- Fixed: two buildings could grow on the same lot at the same time in zones that mix residential, commercial and industrial buildings.
-- Fixed: specialized industry hubs (forestry, agriculture, ore, oil, aquaculture), including hubs that other mods move into hidden zones, no longer appear in the building lists or grow in custom zones. They belong next to their extraction areas.
-- Fixed: with Plop the Growables, the mod now finds its zone check even when Plop the Growables starts it late. Before, buildings in custom zones could be condemned and pardoned over and over, at a cost to performance.
-- Fixed: the zone panel's drop-down lists were too short to show every option; Industrial was hidden under "Starts as".
+**1.0.2**
+- Cities now survive without the mod. Every save, autosaves included, is written with game zones in place of custom zones: each building gets its own game zone under it and empty lots get the zone's base zone. Your custom zones are put back right after saving and when the city loads, so play is unchanged. If the mod is removed, broken by a game update or no longer maintained, the city loads as an ordinary city and nothing is demolished.
+- Cities last saved with an earlier version are protected from their next save onward.
+- Adds about 5 ms to each save.
+- Known issue: buildings reshaped by Placemaker's Outgrow can be condemned in custom zones. A fix is being tested.
 	</ChangeLog>
 	<!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "twitter", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme", "bluesky"-->
 	<ExternalLink Type="github" Url="https://github.com/jesse-simpson/RealZoningBuildingThemes" />
