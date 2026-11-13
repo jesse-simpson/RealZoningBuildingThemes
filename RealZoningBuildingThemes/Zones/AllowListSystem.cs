@@ -149,6 +149,7 @@ namespace RealZoningBuildingThemes.Zones
             try
             {
                 int failed = 0;
+                int hubs = 0;
                 for (int i = 0; i < entities.Length; i++)
                 {
                     BuildingInfo info;
@@ -167,6 +168,12 @@ namespace RealZoningBuildingThemes.Zones
                         continue;
                     }
 
+                    if (BuildingIndex.IsResourceHub(info))
+                    {
+                        hubs++;
+                        continue; // belongs next to an extraction area, not on ordinary zoning
+                    }
+
                     m_Index.Add(info);
                     m_InfoByEntity[info.Entity] = info;
                 }
@@ -174,6 +181,11 @@ namespace RealZoningBuildingThemes.Zones
                 if (failed > 10)
                 {
                     Mod.log.Warn($"AllowList: skipped {failed} buildings in all.");
+                }
+
+                if (hubs > 0)
+                {
+                    Mod.log.Info($"AllowList: left out {hubs} specialized-industry hub buildings (they belong next to extraction areas).");
                 }
             }
             finally

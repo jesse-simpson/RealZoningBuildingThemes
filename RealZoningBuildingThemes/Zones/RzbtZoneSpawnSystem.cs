@@ -474,6 +474,14 @@ namespace RealZoningBuildingThemes.Zones
                     }
                 }
 
+                // A zone that allows several types can make the same block the best lot of two or
+                // three queues at once. Each queue spawns its own best in parallel, so the same
+                // lot could get two buildings at the same time. Keep one candidate per block,
+                // chosen at random so every type still gets its turn there.
+                KeepOnePerBlock(ref bestResidential, ref bestCommercial, ref random);
+                KeepOnePerBlock(ref bestResidential, ref bestIndustrial, ref random);
+                KeepOnePerBlock(ref bestCommercial, ref bestIndustrial, ref random);
+
                 if (bestResidential.m_Priority != 0f)
                 {
                     residentialQ.Enqueue(bestResidential);
@@ -487,6 +495,21 @@ namespace RealZoningBuildingThemes.Zones
                 if (bestIndustrial.m_Priority != 0f)
                 {
                     industrialQ.Enqueue(bestIndustrial);
+                }
+            }
+
+            private static void KeepOnePerBlock(ref ZoneSpawnSystem.SpawnLocation a, ref ZoneSpawnSystem.SpawnLocation b, ref Random random)
+            {
+                if (a.m_Priority != 0f && b.m_Priority != 0f && a.m_Entity == b.m_Entity)
+                {
+                    if (random.NextBool())
+                    {
+                        a.m_Priority = 0f;
+                    }
+                    else
+                    {
+                        b.m_Priority = 0f;
+                    }
                 }
             }
 

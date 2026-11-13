@@ -77,6 +77,33 @@ namespace RealZoningBuildingThemes.Zones
             ["GB"] = "UK",
         };
 
+        /// <summary>
+        /// Resource words in the names of the game's specialized-industry hub zones ("Industrial
+        /// Forestry", "Industrial Offshore Oil", "Industrial Aquaculture - Land" ...). Their buildings
+        /// belong next to the matching extraction area, not on ordinary zoning.
+        /// </summary>
+        private static readonly string[] s_HubZoneWords = { "Forestry", "Agriculture", "Ore", "Oil", "Aquaculture", "Fishing" };
+
+        /// <summary>True for buildings of the game's specialized-industry hub zones; they are left out of the index.</summary>
+        public static bool IsResourceHub(BuildingInfo info)
+        {
+            if ((info.Use != "iman" && info.Use != "iware") || string.IsNullOrEmpty(info.HomeZone) ||
+                !info.HomeZone.StartsWith("Industrial ", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            foreach (string word in s_HubZoneWords)
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(info.HomeZone, $"\\b{word}\\b"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static string CanonicalTheme(string key) => key != null && s_ThemeAliases.TryGetValue(key, out string canonical) ? canonical : key;
 
         public static BuildingInfo Build(EntityManager em, PrefabSystem prefabs, Entity entity)
