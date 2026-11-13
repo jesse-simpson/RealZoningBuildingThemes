@@ -296,7 +296,9 @@
   position: absolute;
   top: 100%;
   right: 0;
-  max-height: 320rem;
+  // Tall enough for the longest list (the 12 uses in "Starts as"): the game's UI shows no
+  // scrollbar here, so anything past the cap could not be reached.
+  max-height: 480rem;
   overflow-y: auto;
   z-index: 10;
   min-width: 180rem;
