@@ -100,20 +100,6 @@ namespace RealZoningBuildingThemes.Zones
 
         protected override void OnUpdate()
         {
-            long perfStart = Perf.Start();
-            try
-            {
-                OnUpdateTimed();
-            }
-            finally
-            {
-                Perf.Stop("Allow-lists", perfStart);
-            }
-        }
-
-        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
-        private void OnUpdateTimed()
-        {
             // Counting every building prefab is the costly part, and new prefabs (assets, zones made
             // in the panel) only appear now and then: look every 16 updates, at once on request.
             if (!s_RebuildRequested && (++m_Updates & 15) != 0)

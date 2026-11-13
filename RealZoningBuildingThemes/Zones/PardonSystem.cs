@@ -87,20 +87,6 @@ namespace RealZoningBuildingThemes.Zones
 
         protected override void OnUpdate()
         {
-            long perfStart = Perf.Start();
-            try
-            {
-                OnUpdateTimed();
-            }
-            finally
-            {
-                Perf.Stop("Pardon pass", perfStart);
-            }
-        }
-
-        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
-        private void OnUpdateTimed()
-        {
             if (m_AllowList.RulesVersion != m_TestedRulesVersion)
             {
                 m_Tested.Clear();

@@ -75,7 +75,6 @@ namespace RealZoningBuildingThemes.Zones
         private NativeList<Entity> m_Buildings;
         private NativeQueue<Result> m_Results;
         private bool m_Pending;
-        private int m_Scheduled; // TEMPORARY (perf-check): probe counter
 
         private int m_Checked;
         private int m_Condemned;
@@ -109,20 +108,6 @@ namespace RealZoningBuildingThemes.Zones
         }
 
         protected override void OnUpdate()
-        {
-            long perfStart = Perf.Start();
-            try
-            {
-                OnUpdateTimed();
-            }
-            finally
-            {
-                Perf.Stop("Zone check", perfStart);
-            }
-        }
-
-        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
-        private void OnUpdateTimed()
         {
             if (m_Failed)
             {
@@ -349,14 +334,6 @@ namespace RealZoningBuildingThemes.Zones
             Dependency = checkHandle;
             m_Handle = checkHandle;
             m_Pending = true;
-
-            // TEMPORARY (perf-check): every 16th check, wait for the jobs here to time them.
-            if ((++m_Scheduled & 15) == 0)
-            {
-                long t = Perf.Start();
-                checkHandle.Complete();
-                Perf.Stop("probe: zone check jobs (find + test, incl. waiting for inputs)", t);
-            }
         }
 
         /// <summary>Applies the last check's results: condemns or lifts, skipping plopped and removed buildings.</summary>

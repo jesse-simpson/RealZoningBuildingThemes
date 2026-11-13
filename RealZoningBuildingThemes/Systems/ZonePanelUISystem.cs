@@ -208,20 +208,6 @@ namespace RealZoningBuildingThemes.Systems
 
         protected override void OnUpdate()
         {
-            long perfStart = Perf.Start();
-            try
-            {
-                OnUpdateTimed();
-            }
-            finally
-            {
-                Perf.Stop("Zone panel UI", perfStart);
-            }
-        }
-
-        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
-        private void OnUpdateTimed()
-        {
             base.OnUpdate();
             CheckHotkey();
             if (m_AllowList.IndexVersion != m_SentIndexVersion)
