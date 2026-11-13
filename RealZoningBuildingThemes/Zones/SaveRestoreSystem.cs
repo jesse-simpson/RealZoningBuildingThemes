@@ -1,7 +1,5 @@
 using System;
 using Game;
-using Game.Common;
-using Game.Objects;
 using Game.Zones;
 using Unity.Entities;
 
@@ -37,55 +35,8 @@ namespace RealZoningBuildingThemes.Zones
             int missing = 0;
             try
             {
-                foreach (SaveSwapSystem.BlockEdits b in m_Swap.PendingBlocks)
-                {
-                    if (!EntityManager.Exists(b.Block) || !EntityManager.HasBuffer<Cell>(b.Block))
-                    {
-                        missing++;
-                        continue;
-                    }
-
-                    DynamicBuffer<Cell> cellBuffer = EntityManager.GetBuffer<Cell>(b.Block);
-                    foreach (SaveSwapSystem.Edit e in b.Cells)
-                    {
-                        if (e.Index < cellBuffer.Length)
-                        {
-                            Cell cell = cellBuffer[e.Index];
-                            cell.m_Zone = e.Original;
-                            cellBuffer[e.Index] = cell;
-                            cells++;
-                        }
-                    }
-
-                    if (b.Lots.Count > 0 && EntityManager.HasBuffer<VacantLot>(b.Block))
-                    {
-                        DynamicBuffer<VacantLot> lotBuffer = EntityManager.GetBuffer<VacantLot>(b.Block);
-                        foreach (SaveSwapSystem.Edit e in b.Lots)
-                        {
-                            if (e.Index < lotBuffer.Length)
-                            {
-                                VacantLot lot = lotBuffer[e.Index];
-                                lot.m_Type = e.Original;
-                                lotBuffer[e.Index] = lot;
-                                lots++;
-                            }
-                        }
-                    }
-                }
-
-                foreach (SaveSwapSystem.PausedLevelUp p in m_Swap.PendingLevelUps)
-                {
-                    if (EntityManager.Exists(p.Building) && !EntityManager.HasComponent<Deleted>(p.Building) &&
-                        !EntityManager.HasComponent<UnderConstruction>(p.Building))
-                    {
-                        EntityManager.AddComponentData(p.Building, p.Construction);
-                        levelUps++;
-                    }
-                    else
-                    {
-                        missing++;
-                    }
-                }
+                EntityManager.CompleteAllTrackedJobs();
+                m_Swap.RestoreAfterSave(GetBufferLookup<Cell>(false), GetBufferLookup<VacantLot>(false), out cells, out lots, out levelUps, out missing);
             }
             catch (Exception e)
             {
