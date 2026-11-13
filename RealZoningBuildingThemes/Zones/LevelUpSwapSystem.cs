@@ -77,9 +77,7 @@ namespace RealZoningBuildingThemes.Zones
         // looked at again unless something changes that prefab. Pruned now and then.
         private readonly Dictionary<Entity, Entity> m_Approved = new Dictionary<Entity, Entity>();
 
-        // Reused lists, so the per-update checks allocate nothing.
-        private readonly List<Entity> m_Done = new List<Entity>();
-        private readonly List<Entity> m_Arrived = new List<Entity>();
+        // Reused list, so the per-update checks allocate nothing.
         private readonly List<(Entity building, UnderConstruction construction, Entity current)> m_Pending = new List<(Entity, UnderConstruction, Entity)>();
 
         // The game's zone search tree, fetched only when a decision needs it and at most once
@@ -87,11 +85,18 @@ namespace RealZoningBuildingThemes.Zones
         private NativeQuadTree<Entity, Bounds2> m_Tree;
         private bool m_HaveTree;
 
-        // Missed level-ups are looked for every few updates; level-ups take minutes of game time.
-        private const int kMissedLevelUpInterval = 4;
-
-        // How often the remembered buildings are pruned (updates).
-        private const int kPruneInterval = 256;
+        // The waiting list and the remembered buildings can hold thousands of buildings, so each
+        // update looks at only a slice of them, in rotation: the cost per update stays small and
+        // flat however big the city. A missed level-up may start a little later (well under a
+        // second of game time in a large city); level-ups take minutes anyway.
+        private const int kMissedPerUpdate = 48;
+        private const int kPrunePerUpdate = 64;
+        private readonly List<Entity> m_AwaitScan = new List<Entity>();
+        private int m_AwaitScanPos;
+        private readonly List<Entity> m_MaterialsScan = new List<Entity>();
+        private int m_MaterialsScanPos;
+        private readonly List<Entity> m_ApprovedScan = new List<Entity>();
+        private int m_ApprovedScanPos;
 
         // Blocked level-ups, summarised in the log about once a minute.
         private int m_BlockedCount;
@@ -174,15 +179,21 @@ namespace RealZoningBuildingThemes.Zones
                 m_MaterialsChecked.Clear();
             }
 
-            bool haveMaterials = !m_MaterialsQuery.IsEmpty;            // changed chunks only
-            bool haveConstruction = !m_UnderConstructionQuery.IsEmpty;  // changed chunks only
-            bool checkMissed = m_Awaiting.Count > 0 && m_Frame % kMissedLevelUpInterval == 0;
-            if (m_Frame % kPruneInterval == 0)
-            {
-                Prune();
-            }
+            Perf.Stop("part: level-ups, query check A (any materials requests)", partStart); // TEMPORARY (perf-check)
 
-            Perf.Stop("part: level-ups, query checks and pruning", partStart); // TEMPORARY (perf-check)
+            // TEMPORARY (perf-check): each changed-chunk check timed on its own; a change filter
+            // may have to wait for the game's jobs writing that component.
+            partStart = Perf.Start();
+            bool haveMaterials = !m_MaterialsQuery.IsEmpty;            // changed chunks only
+            Perf.Stop("part: level-ups, query check B (changed materials requests)", partStart);
+            partStart = Perf.Start();
+            bool haveConstruction = !m_UnderConstructionQuery.IsEmpty;  // changed chunks only
+            Perf.Stop("part: level-ups, query check C (changed construction)", partStart);
+            bool checkMissed = m_Awaiting.Count > 0;
+
+            partStart = Perf.Start(); // TEMPORARY (perf-check)
+            PruneSlice();
+            Perf.Stop("part: level-ups, pruning", partStart);
 
             if (haveMaterials || haveConstruction || checkMissed)
             {
@@ -222,6 +233,8 @@ namespace RealZoningBuildingThemes.Zones
                     }
 
                     m_Awaiting.Clear();
+                    m_AwaitScan.Clear();
+                    m_AwaitScanPos = 0;
                 }
                 finally
                 {
@@ -259,38 +272,40 @@ namespace RealZoningBuildingThemes.Zones
             }
         }
 
-        /// <summary>Forgets buildings whose materials request or level-up has ended.</summary>
-        private void Prune()
+        /// <summary>Forgets, a slice at a time, buildings whose materials request or level-up has ended.</summary>
+        private void PruneSlice()
         {
-            m_Done.Clear();
-            foreach (Entity building in m_MaterialsChecked)
+            if (m_MaterialsScanPos >= m_MaterialsScan.Count)
             {
+                m_MaterialsScan.Clear();
+                m_MaterialsScan.AddRange(m_MaterialsChecked);
+                m_MaterialsScanPos = 0;
+            }
+
+            for (int n = 0; n < kPrunePerUpdate && m_MaterialsScanPos < m_MaterialsScan.Count; n++, m_MaterialsScanPos++)
+            {
+                Entity building = m_MaterialsScan[m_MaterialsScanPos];
                 if (!EntityManager.Exists(building) || !EntityManager.HasBuffer<ResourceNeeding>(building))
                 {
-                    m_Done.Add(building);
+                    m_MaterialsChecked.Remove(building);
                 }
             }
 
-            foreach (Entity building in m_Done)
+            if (m_ApprovedScanPos >= m_ApprovedScan.Count)
             {
-                m_MaterialsChecked.Remove(building);
+                m_ApprovedScan.Clear();
+                m_ApprovedScan.AddRange(m_Approved.Keys);
+                m_ApprovedScanPos = 0;
             }
 
-            m_Done.Clear();
-            foreach (var kv in m_Approved)
+            for (int n = 0; n < kPrunePerUpdate && m_ApprovedScanPos < m_ApprovedScan.Count; n++, m_ApprovedScanPos++)
             {
-                if (!EntityManager.Exists(kv.Key) || !EntityManager.HasComponent<UnderConstruction>(kv.Key))
+                Entity building = m_ApprovedScan[m_ApprovedScanPos];
+                if (!EntityManager.Exists(building) || !EntityManager.HasComponent<UnderConstruction>(building))
                 {
-                    m_Done.Add(kv.Key);
+                    m_Approved.Remove(building);
                 }
             }
-
-            foreach (Entity building in m_Done)
-            {
-                m_Approved.Remove(building);
-            }
-
-            m_Done.Clear();
         }
 
         /// <summary>Point 1: cancel material requests for level-ups the zone does not allow.</summary>
@@ -342,21 +357,29 @@ namespace RealZoningBuildingThemes.Zones
         /// <summary>Point 3: materials arrived but the game started no level-up; start the zone's own.</summary>
         private void CheckMissedLevelUps()
         {
-            List<Entity> done = m_Done;
-            List<Entity> arrived = m_Arrived;
-            done.Clear();
-            arrived.Clear();
-            foreach (var kv in m_Awaiting)
+            if (m_AwaitScanPos >= m_AwaitScan.Count)
             {
-                Entity building = kv.Key;
+                m_AwaitScan.Clear();
+                m_AwaitScan.AddRange(m_Awaiting.Keys);
+                m_AwaitScanPos = 0;
+            }
+
+            for (int n = 0; n < kMissedPerUpdate && m_AwaitScanPos < m_AwaitScan.Count; n++, m_AwaitScanPos++)
+            {
+                Entity building = m_AwaitScan[m_AwaitScanPos];
+                if (!m_Awaiting.TryGetValue(building, out var entry))
+                {
+                    continue; // already settled since this round began
+                }
+
                 // A bulldozed building can linger for a frame as an entity without its components
                 // (seen 2026-11-11: no PrefabRef), so check before reading anything.
                 if (!EntityManager.Exists(building) || EntityManager.HasComponent<Deleted>(building) ||
                     !EntityManager.HasComponent<PrefabRef>(building) || !EntityManager.HasComponent<Game.Objects.Transform>(building) ||
                     EntityManager.HasComponent<UnderConstruction>(building) ||
-                    EntityManager.GetComponentData<PrefabRef>(building).m_Prefab != kv.Value.prefab)
+                    EntityManager.GetComponentData<PrefabRef>(building).m_Prefab != entry.prefab)
                 {
-                    done.Add(building); // gone, or the game's level-up is under way (handled by CheckLevelUps)
+                    m_Awaiting.Remove(building); // gone, or the game's level-up is under way (handled by CheckLevelUps)
                     continue;
                 }
 
@@ -365,29 +388,16 @@ namespace RealZoningBuildingThemes.Zones
                     continue; // still gathering materials
                 }
 
-                if (kv.Value.arrivedFrame < 0)
+                if (entry.arrivedFrame < 0)
                 {
-                    arrived.Add(building);
+                    m_Awaiting[building] = (entry.prefab, m_Frame); // materials arrived: give the game its turn first
                 }
-                else if (m_Frame - kv.Value.arrivedFrame >= kMissedLevelUpDelay)
+                else if (m_Frame - entry.arrivedFrame >= kMissedLevelUpDelay)
                 {
-                    done.Add(building);
-                    StartLevelUp(building, kv.Value.prefab);
+                    m_Awaiting.Remove(building);
+                    StartLevelUp(building, entry.prefab);
                 }
             }
-
-            foreach (Entity building in arrived)
-            {
-                m_Awaiting[building] = (m_Awaiting[building].prefab, m_Frame);
-            }
-
-            foreach (Entity building in done)
-            {
-                m_Awaiting.Remove(building);
-            }
-
-            done.Clear();
-            arrived.Clear();
         }
 
         private void StartLevelUp(Entity building, Entity current)
