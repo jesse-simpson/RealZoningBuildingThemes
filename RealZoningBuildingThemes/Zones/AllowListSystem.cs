@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Game;
 using Game.Prefabs;
 using Unity.Collections;
@@ -31,6 +32,7 @@ namespace RealZoningBuildingThemes.Zones
         }
 
         private static bool s_RebuildRequested;
+        private int m_Updates;
 
         private PrefabSystem m_PrefabSystem;
         private EntityQuery m_BuildingQuery;
@@ -57,6 +59,9 @@ namespace RealZoningBuildingThemes.Zones
         {
             s_RebuildRequested = true;
         }
+
+        /// <summary>Every building prefab on any of our allow-lists, with the zone type indices that allow it; the zone check copies it for its job.</summary>
+        public IReadOnlyDictionary<Entity, List<ushort>> ZonesByBuilding => m_ZonesByBuilding;
 
         /// <summary>Zone type indices of our zones that allow this building prefab, or null.</summary>
         public List<ushort> GetAllowingZones(Entity buildingPrefab)
@@ -95,6 +100,13 @@ namespace RealZoningBuildingThemes.Zones
 
         protected override void OnUpdate()
         {
+            // Counting every building prefab is the costly part, and new prefabs (assets, zones made
+            // in the panel) only appear now and then: look every 16 updates, at once on request.
+            if (!s_RebuildRequested && (++m_Updates & 15) != 0)
+            {
+                return;
+            }
+
             int buildings = m_BuildingQuery.CalculateEntityCount();
             int zones = m_OurZonesQuery.CalculateEntityCount();
             bool buildingsChanged = buildings != m_LastBuildingCount;
@@ -124,6 +136,9 @@ namespace RealZoningBuildingThemes.Zones
             try
             {
                 int failed = 0;
+                int hubs = 0;
+                var hubsBy = new Dictionary<string, int>();
+                var hubExample = new Dictionary<string, string>();
                 for (int i = 0; i < entities.Length; i++)
                 {
                     BuildingInfo info;
@@ -142,6 +157,22 @@ namespace RealZoningBuildingThemes.Zones
                         continue;
                     }
 
+                    string hubReason = BuildingIndex.HubReason(info);
+                    if (hubReason != null)
+                    {
+                        // Belongs next to an extraction area, not on ordinary zoning. Counted per
+                        // reason and home zone for the log, so a wrong catch is easy to spot.
+                        hubs++;
+                        string key = $"{hubReason}: {(string.IsNullOrEmpty(info.HomeZone) ? "(none)" : info.HomeZone)}";
+                        hubsBy[key] = hubsBy.TryGetValue(key, out int seen) ? seen + 1 : 1;
+                        if (!hubExample.ContainsKey(key))
+                        {
+                            hubExample[key] = info.Name;
+                        }
+
+                        continue;
+                    }
+
                     m_Index.Add(info);
                     m_InfoByEntity[info.Entity] = info;
                 }
@@ -149,6 +180,15 @@ namespace RealZoningBuildingThemes.Zones
                 if (failed > 10)
                 {
                     Mod.log.Warn($"AllowList: skipped {failed} buildings in all.");
+                }
+
+                if (hubs > 0)
+                {
+                    Mod.log.Info($"AllowList: left out {hubs} specialized-industry hub buildings (they belong next to extraction areas):");
+                    foreach (var kv in hubsBy.OrderByDescending(k => k.Value))
+                    {
+                        Mod.log.Info($"AllowList:   {kv.Value} by {kv.Key} (e.g. '{hubExample[kv.Key]}')");
+                    }
                 }
             }
             finally

@@ -292,8 +292,22 @@ namespace RealZoningBuildingThemes.Zones
                 JobHandle.CombineDependencies(commercialDemandJob, industrialDemandJob, storageDemandJob));
 
             JobHandle vanillaHandle = vanilla.ScheduleParallel(m_VacantLotsQuery, inputs);
+
             JobHandle evaluateHandle = ours.ScheduleParallel(m_VacantLotsQuery, vanillaHandle);
-            JobHandle spawnHandle = spawnBuildingJob.Schedule(3, 1, JobHandle.CombineDependencies(evaluateHandle, searchTreeJob));
+
+            // The three queues spawn their best candidates in parallel; keep one of any two
+            // winners whose lots come close, so they cannot overlap.
+            var reconcile = new KeepOneWhereClose
+            {
+                blockLookup = GetComponentLookup<Block>(true),
+                residentialQ = residentialQ,
+                commercialQ = commercialQ,
+                industrialQ = industrialQ,
+                randomSeed = RandomSeed.Next(),
+            };
+            JobHandle reconcileHandle = reconcile.Schedule(evaluateHandle);
+
+            JobHandle spawnHandle = spawnBuildingJob.Schedule(3, 1, JobHandle.CombineDependencies(reconcileHandle, searchTreeJob));
 
             m_ResourceSystem.AddPrefabsReader(evaluateHandle);
             m_PollutionSystem.AddReader(evaluateHandle);
@@ -312,6 +326,108 @@ namespace RealZoningBuildingThemes.Zones
             m_SearchSystem.AddSearchTreeReader(spawnHandle);
 
             Dependency = spawnHandle;
+        }
+
+        /// <summary>
+        /// Runs between evaluation and spawning. The game spawns the best candidate of each
+        /// queue (residential, commercial, industrial) at the same time, in parallel, before any
+        /// of the new buildings marks its cells as taken. In the game's own zones the three
+        /// winners are nearly always far apart, but a zone of ours can allow several types, so
+        /// two winners can be the same block, or two blocks meeting at a corner (a corner lot
+        /// reaches round the corner), and the buildings would overlap. This keeps the best of
+        /// each queue, and of any two whose lots come close keeps one, at random so every type
+        /// still gets its turn. A dropped type simply waits for the next spawn pass.
+        /// Checks the game's own candidates too, since a corner can join one of its zones to ours.
+        /// </summary>
+        [BurstCompile]
+        public struct KeepOneWhereClose : IJob
+        {
+            [ReadOnly] public ComponentLookup<Block> blockLookup;
+            public NativeQueue<ZoneSpawnSystem.SpawnLocation> residentialQ;
+            public NativeQueue<ZoneSpawnSystem.SpawnLocation> commercialQ;
+            public NativeQueue<ZoneSpawnSystem.SpawnLocation> industrialQ;
+            public RandomSeed randomSeed;
+
+            public void Execute()
+            {
+                var random = randomSeed.GetRandom(0);
+                ZoneSpawnSystem.SpawnLocation residential = TakeBest(residentialQ);
+                ZoneSpawnSystem.SpawnLocation commercial = TakeBest(commercialQ);
+                ZoneSpawnSystem.SpawnLocation industrial = TakeBest(industrialQ);
+
+                KeepOne(ref residential, ref commercial, ref random);
+                KeepOne(ref residential, ref industrial, ref random);
+                KeepOne(ref commercial, ref industrial, ref random);
+
+                if (residential.m_Priority != 0f)
+                {
+                    residentialQ.Enqueue(residential);
+                }
+
+                if (commercial.m_Priority != 0f)
+                {
+                    commercialQ.Enqueue(commercial);
+                }
+
+                if (industrial.m_Priority != 0f)
+                {
+                    industrialQ.Enqueue(industrial);
+                }
+            }
+
+            /// <summary>Empties the queue and returns its best candidate, as the game's spawn job would pick it.</summary>
+            private static ZoneSpawnSystem.SpawnLocation TakeBest(NativeQueue<ZoneSpawnSystem.SpawnLocation> queue)
+            {
+                var best = default(ZoneSpawnSystem.SpawnLocation);
+                while (queue.TryDequeue(out ZoneSpawnSystem.SpawnLocation location))
+                {
+                    if (location.m_Priority > best.m_Priority)
+                    {
+                        best = location;
+                    }
+                }
+
+                return best;
+            }
+
+            private void KeepOne(ref ZoneSpawnSystem.SpawnLocation a, ref ZoneSpawnSystem.SpawnLocation b, ref Random random)
+            {
+                if (a.m_Priority != 0f && b.m_Priority != 0f && LotsClose(a, b))
+                {
+                    if (random.NextBool())
+                    {
+                        a.m_Priority = 0f;
+                    }
+                    else
+                    {
+                        b.m_Priority = 0f;
+                    }
+                }
+            }
+
+            /// <summary>
+            /// True when two lots are on the same block, or their centres are nearer than the sum
+            /// of their half diagonals plus one cell (8 m) each for a corner lot. Errs on the side
+            /// of caution.
+            /// </summary>
+            private bool LotsClose(in ZoneSpawnSystem.SpawnLocation a, in ZoneSpawnSystem.SpawnLocation b)
+            {
+                if (a.m_Entity == b.m_Entity)
+                {
+                    return true;
+                }
+
+                if (!blockLookup.TryGetComponent(a.m_Entity, out Block blockA) || !blockLookup.TryGetComponent(b.m_Entity, out Block blockB))
+                {
+                    return false;
+                }
+
+                float3 centreA = ZoneUtils.GetPosition(blockA, a.m_LotArea.xz, a.m_LotArea.yw);
+                float3 centreB = ZoneUtils.GetPosition(blockB, b.m_LotArea.xz, b.m_LotArea.yw);
+                float reachA = 4f * math.length((float2)(a.m_LotArea.yw - a.m_LotArea.xz)) + 8f;
+                float reachB = 4f * math.length((float2)(b.m_LotArea.yw - b.m_LotArea.xz)) + 8f;
+                return math.distance(centreA.xz, centreB.xz) < reachA + reachB;
+            }
         }
 
         /// <summary>

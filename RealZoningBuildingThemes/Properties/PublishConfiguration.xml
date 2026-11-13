@@ -57,7 +57,7 @@ This mod is released under the MIT License.
 	<!--Link to the forum post where the mod can be discussed-->
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/real-zoning-building-themes.1949785/" />
 	<!--Version of the mod-->
-	<ModVersion Value="1.0.0" />
+	<ModVersion Value="1.0.1" />
 	<!--Recommended version of the base game to use the mod-->
 	<GameVersion Value="1.6.*" />
 	<!--Dependency for the mod, can be set multiple times-->
@@ -65,7 +65,14 @@ This mod is released under the MIT License.
 	<!--Required DLC, can be set multiple times. Supported values are "Landmark Buildings", "San Fransisco Set", "Beach Properties", "Urban Promenades", "Modern Architecture"-->
 	<RequiredDLC Value="" />
 	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
-	<ChangeLog Value="First release." />
+	<ChangeLog>
+**1.0.1**
+- Much faster: in testing on a large city at top speed, the mod's main-thread cost fell from up to 7 ms per frame in 1.0.0 to about 1 ms during heavy growth and rezoning, and to about 0.5 ms in normal play (under 1 fps). The zone check now runs as background jobs like the game's own, and level-up control does work only when something changes.
+- Fixed: two buildings could grow on the same lot at the same time in zones that mix residential, commercial and industrial buildings.
+- Fixed: specialized industry hubs (forestry, agriculture, ore, oil, aquaculture), including hubs that other mods move into hidden zones, no longer appear in the building lists or grow in custom zones. They belong next to their extraction areas.
+- Fixed: with Plop the Growables, the mod now finds its zone check even when Plop the Growables starts it late. Before, buildings in custom zones could be condemned and pardoned over and over, at a cost to performance.
+- Fixed: the zone panel's drop-down lists were too short to show every option; Industrial was hidden under "Starts as".
+	</ChangeLog>
 	<!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "twitter", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme", "bluesky"-->
 	<ExternalLink Type="github" Url="https://github.com/jesse-simpson/RealZoningBuildingThemes" />
 </Publish>

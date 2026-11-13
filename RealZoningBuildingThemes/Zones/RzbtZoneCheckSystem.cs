@@ -2,10 +2,11 @@
 // Growables' SelectiveZoneCheckSystem.
 // Plop the Growables: Copyright (c) 2024-26 algernon (K. Algernon A. Sheppard). Licensed under the
 // Apache License, Version 2.0 (LICENSES/Apache-2.0.txt; see also NOTICE.txt).
-// Changed for Real Zoning & Building Themes: runs on the main thread in place of the game's or
-// Plop the Growables' check; a lot also passes when every cell is one of our zones that allows the
-// building (ZoneLotTest); honours Plop the Growables' despawn setting by switching itself off;
-// skips plopped buildings; logs examples of what it condemns.
+// Changed for Real Zoning & Building Themes: runs in place of the game's or Plop the Growables'
+// check; a cell also passes when it is one of our zones that allows the building; the jobs only
+// report changes, which are applied on the main thread the next update (skipping plopped
+// buildings and logging examples); honours Plop the Growables' despawn setting by switching
+// itself off.
 
 using System;
 using System.Collections.Generic;
@@ -20,9 +21,11 @@ using Game.Objects;
 using Game.Prefabs;
 using Game.Tools;
 using Game.Zones;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
+using Unity.Mathematics;
 using Transform = Game.Objects.Transform;
 
 namespace RealZoningBuildingThemes.Zones
@@ -37,8 +40,13 @@ namespace RealZoningBuildingThemes.Zones
     /// With Plop the Growables, its own check (SelectiveZoneCheckSystem) has already replaced the
     /// game's. Its "despawn spawned buildings when zoning changes" setting is followed: when it is
     /// off nothing is checked, as Plop the Growables intends; when it is on, this check runs in its
-    /// place and, like it, never touches plopped buildings. Buildings created this frame are left
-    /// to the next check (a fresh plop is tagged by Plop the Growables only in this phase).
+    /// place and, like it, never touches plopped buildings.
+    ///
+    /// How it runs, as the game's check does: when zoning changed somewhere, parallel jobs find the
+    /// grown buildings in the changed areas and test each lot cell by cell. The jobs only report
+    /// buildings whose state should change (condemn or lift); those are applied on the main thread
+    /// at the start of the next update, once the jobs have long finished. Applying a frame later
+    /// also lets Plop the Growables tag a fresh plop first, so plops are never condemned.
     /// If anything throws, the replaced check is switched back on and this one turns itself off.
     /// </summary>
     public partial class RzbtZoneCheckSystem : GameSystemBase
@@ -57,6 +65,17 @@ namespace RealZoningBuildingThemes.Zones
         private ComponentSystemBase m_Replaced;
         private bool m_Failed;
 
+        // The jobs' copy of the allow-lists: building prefab -> zone type indices of our zones that
+        // allow it. Rebuilt when the rules change, never while a check is running.
+        private NativeParallelMultiHashMap<Entity, ushort> m_Allowed;
+        private int m_AllowedVersion = -1;
+
+        // The check scheduled last update; its results are applied at the start of the next one.
+        private JobHandle m_Handle;
+        private NativeList<Entity> m_Buildings;
+        private NativeQueue<Result> m_Results;
+        private bool m_Pending;
+
         private int m_Checked;
         private int m_Condemned;
         private int m_Lifted;
@@ -73,10 +92,17 @@ namespace RealZoningBuildingThemes.Zones
             m_AllowList = World.GetOrCreateSystemManaged<AllowListSystem>();
             m_GameCheck = World.GetOrCreateSystemManaged<ZoneCheckSystem>();
             m_BuildingConfigQuery = GetEntityQuery(ComponentType.ReadOnly<BuildingConfigurationData>());
+            m_Allowed = new NativeParallelMultiHashMap<Entity, ushort>(1024, Allocator.Persistent);
         }
 
         protected override void OnDestroy()
         {
+            DisposePending();
+            if (m_Allowed.IsCreated)
+            {
+                m_Allowed.Dispose();
+            }
+
             Restore();
             base.OnDestroy();
         }
@@ -90,6 +116,11 @@ namespace RealZoningBuildingThemes.Zones
 
             try
             {
+                if (m_Pending)
+                {
+                    ApplyResults();
+                }
+
                 if (!TakeOver())
                 {
                     return;
@@ -97,7 +128,7 @@ namespace RealZoningBuildingThemes.Zones
 
                 if (m_ZoneUpdateCollect.isUpdated && !m_BuildingConfigQuery.IsEmptyIgnoreFilter)
                 {
-                    Check();
+                    ScheduleCheck();
                 }
 
                 if (m_Checked > 0 && (DateTime.UtcNow - m_LastLog).TotalSeconds >= 60)
@@ -116,6 +147,7 @@ namespace RealZoningBuildingThemes.Zones
             catch (Exception e)
             {
                 m_Failed = true;
+                DisposePending();
                 Restore();
                 Mod.log.Error($"ZoneCheck: failed ({e}); the replaced zone check is back on and the pardon pass covers our zones.");
             }
@@ -164,16 +196,28 @@ namespace RealZoningBuildingThemes.Zones
             }
         }
 
-        private bool m_SearchedPlop;
+        // Updates until the next look for Plop the Growables' check. It is looked for again until
+        // found, and at once when a city finishes loading: this system can first run before other
+        // mods have created their systems (seen 2026-11-13: it ran 17 s after start, found
+        // nothing, took over the game's check, and Plop the Growables' check then ran alongside
+        // it, condemning buildings on our zones that the pardon pass had to lift).
+        private int m_PlopSearchWait;
+        private const int kPlopSearchInterval = 300;
+
+        protected override void OnGameLoadingComplete(Colossal.Serialization.Entities.Purpose purpose, GameMode mode)
+        {
+            base.OnGameLoadingComplete(purpose, mode);
+            m_PlopSearchWait = 0;
+        }
 
         private void FindPlopCheck()
         {
-            if (m_SearchedPlop)
+            if (m_PlopCheck != null || m_PlopSearchWait-- > 0)
             {
                 return;
             }
 
-            m_SearchedPlop = true;
+            m_PlopSearchWait = kPlopSearchInterval;
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (assembly.GetName().Name.IndexOf("Plop", StringComparison.OrdinalIgnoreCase) < 0)
@@ -201,101 +245,160 @@ namespace RealZoningBuildingThemes.Zones
                 if (type != null)
                 {
                     m_PlopCheck = World.GetExistingSystemManaged(type);
-                    m_PlopDespawnSetting = type.GetProperty("SpawnedZoneDespawn", BindingFlags.Public | BindingFlags.Instance);
-                    Mod.log.Info($"ZoneCheck: found Plop the Growables' zone check ({(m_PlopCheck != null ? "running" : "not running")}; despawn setting {(m_PlopDespawnSetting != null ? "found" : "not found")}).");
-                    return;
+                    if (m_PlopCheck != null)
+                    {
+                        m_PlopDespawnSetting = type.GetProperty("SpawnedZoneDespawn", BindingFlags.Public | BindingFlags.Instance);
+                        Mod.log.Info($"ZoneCheck: found Plop the Growables' zone check (despawn setting {(m_PlopDespawnSetting != null ? "found" : "not found")}).");
+                    }
+
+                    return; // not created yet: looked for again later
                 }
             }
         }
 
-        private void Check()
+        /// <summary>Copies the allow-lists into the jobs' map (only when no check is running).</summary>
+        private void RebuildAllowed()
         {
+            m_Allowed.Clear();
+            foreach (var kv in m_AllowList.ZonesByBuilding)
+            {
+                foreach (ushort zone in kv.Value)
+                {
+                    m_Allowed.Add(kv.Key, zone);
+                }
+            }
+
+            m_AllowedVersion = m_AllowList.RulesVersion;
+        }
+
+        /// <summary>Schedules the jobs that find and test the buildings in the areas whose zoning changed.</summary>
+        private void ScheduleCheck()
+        {
+            if (m_AllowList.RulesVersion != m_AllowedVersion)
+            {
+                RebuildAllowed();
+            }
+
             NativeList<Bounds2> updated = m_ZoneUpdateCollect.GetUpdatedBounds(true, out JobHandle boundsDeps);
             NativeQuadTree<Entity, QuadTreeBoundsXZ> objects = m_ObjectSearch.GetStaticSearchTree(true, out JobHandle objectDeps);
-            boundsDeps.Complete();
-            objectDeps.Complete();
-
-            var buildings = new HashSet<Entity>();
-            var finder = new BuildingFinder { m_EntityManager = EntityManager, m_Results = buildings };
-            for (int i = 0; i < updated.Length; i++)
-            {
-                finder.m_Bounds = updated[i];
-                objects.Iterate(ref finder);
-            }
-
-            m_ZoneUpdateCollect.AddBoundsReader(default);
-            m_ObjectSearch.AddStaticSearchTreeReader(default);
-            if (buildings.Count == 0)
-            {
-                return;
-            }
-
             NativeQuadTree<Entity, Bounds2> zoneTree = m_ZoneSearch.GetSearchTree(true, out JobHandle zoneDeps);
-            zoneDeps.Complete();
 
-            bool editor = m_ToolSystem.actionMode.IsEditor();
-            var config = m_BuildingConfigQuery.GetSingleton<BuildingConfigurationData>();
-            IconCommandBuffer icons = default;
-            bool haveIcons = false;
-            var condemn = new List<Entity>();
-            var lift = new List<Entity>();
+            var queue = new NativeQueue<Entity>(Allocator.TempJob);
+            m_Buildings = new NativeList<Entity>(Allocator.TempJob);
+            m_Results = new NativeQueue<Result>(Allocator.TempJob);
 
-            foreach (Entity building in buildings)
+            var find = new FindBuildingsJob
             {
-                if (EntityManager.HasComponent<Created>(building) || EntityManager.HasComponent<Deleted>(building) ||
-                    EntityManager.HasComponent<Temp>(building) || PlopCompat.IsPlopped(EntityManager, building))
+                m_Bounds = updated.AsDeferredJobArray(),
+                m_SearchTree = objects,
+                m_BuildingData = GetComponentLookup<Building>(true),
+                m_PrefabRefData = GetComponentLookup<PrefabRef>(true),
+                m_SpawnableData = GetComponentLookup<SpawnableBuildingData>(true),
+                m_SignatureData = GetComponentLookup<SignatureBuildingData>(true),
+                m_Queue = queue.AsParallelWriter(),
+            };
+
+            var collect = new CollectJob { m_Queue = queue, m_List = m_Buildings };
+
+            var check = new CheckJob
+            {
+                m_Buildings = m_Buildings.AsDeferredJobArray(),
+                m_SearchTree = zoneTree,
+                m_Allowed = m_Allowed,
+                m_CondemnedData = GetComponentLookup<Condemned>(true),
+                m_DeletedData = GetComponentLookup<Deleted>(true),
+                m_TempData = GetComponentLookup<Temp>(true),
+                m_BlockData = GetComponentLookup<Block>(true),
+                m_ValidAreaData = GetComponentLookup<ValidArea>(true),
+                m_TransformData = GetComponentLookup<Transform>(true),
+                m_AttachedData = GetComponentLookup<Attached>(true),
+                m_PrefabRefData = GetComponentLookup<PrefabRef>(true),
+                m_PrefabData = GetComponentLookup<PrefabData>(true),
+                m_BuildingData = GetComponentLookup<BuildingData>(true),
+                m_SpawnableData = GetComponentLookup<SpawnableBuildingData>(true),
+                m_PlaceholderData = GetComponentLookup<PlaceholderBuildingData>(true),
+                m_ZoneData = GetComponentLookup<ZoneData>(true),
+                m_Cells = GetBufferLookup<Cell>(true),
+                m_EditorMode = m_ToolSystem.actionMode.IsEditor(),
+                m_Results = m_Results.AsParallelWriter(),
+            };
+
+            JobHandle findHandle = find.Schedule(updated, 1, JobHandle.CombineDependencies(Dependency, boundsDeps, objectDeps));
+            JobHandle collectHandle = collect.Schedule(findHandle);
+            JobHandle checkHandle = check.Schedule(m_Buildings, 1, JobHandle.CombineDependencies(collectHandle, zoneDeps));
+            queue.Dispose(collectHandle);
+
+            m_ZoneUpdateCollect.AddBoundsReader(findHandle);
+            m_ObjectSearch.AddStaticSearchTreeReader(findHandle);
+            m_ZoneSearch.AddSearchTreeReader(checkHandle);
+            Dependency = checkHandle;
+            m_Handle = checkHandle;
+            m_Pending = true;
+        }
+
+        /// <summary>Applies the last check's results: condemns or lifts, skipping plopped and removed buildings.</summary>
+        private void ApplyResults()
+        {
+            m_Handle.Complete();
+            m_Pending = false;
+            try
+            {
+                m_Checked += m_Buildings.Length;
+                if (m_Results.Count == 0)
                 {
-                    continue;
+                    return;
                 }
 
-                m_Checked++;
-                bool valid = editor || IsValid(zoneTree, building);
-                bool condemned = EntityManager.HasComponent<Condemned>(building);
-                if (valid && condemned)
+                var config = m_BuildingConfigQuery.GetSingleton<BuildingConfigurationData>();
+                IconCommandBuffer icons = m_IconCommandSystem.CreateCommandBuffer();
+                while (m_Results.TryDequeue(out Result result))
                 {
-                    lift.Add(building);
-                }
-                else if (!valid && !condemned)
-                {
-                    condemn.Add(building);
+                    Entity building = result.m_Building;
+                    if (!EntityManager.Exists(building) || EntityManager.HasComponent<Deleted>(building) ||
+                        EntityManager.HasComponent<Temp>(building) || PlopCompat.IsPlopped(EntityManager, building))
+                    {
+                        continue;
+                    }
+
+                    bool condemned = EntityManager.HasComponent<Condemned>(building);
+                    if (result.m_Valid && condemned)
+                    {
+                        EntityManager.RemoveComponent<Condemned>(building);
+                        icons.Remove(building, config.m_CondemnedNotification);
+                        m_Lifted++;
+                    }
+                    else if (!result.m_Valid && !condemned)
+                    {
+                        if (m_Examples.Count < 10)
+                        {
+                            m_Examples.Add(Describe(building));
+                        }
+
+                        EntityManager.AddComponent<Condemned>(building);
+                        if (!EntityManager.HasComponent<Destroyed>(building) && !EntityManager.HasComponent<Abandoned>(building))
+                        {
+                            icons.Add(building, config.m_CondemnedNotification, IconPriority.FatalProblem);
+                        }
+
+                        m_Condemned++;
+                    }
                 }
             }
-
-            m_ZoneSearch.AddSearchTreeReader(default);
-
-            foreach (Entity building in lift)
+            finally
             {
-                if (!haveIcons)
-                {
-                    icons = m_IconCommandSystem.CreateCommandBuffer();
-                    haveIcons = true;
-                }
-
-                EntityManager.RemoveComponent<Condemned>(building);
-                icons.Remove(building, config.m_CondemnedNotification);
-                m_Lifted++;
+                m_Buildings.Dispose();
+                m_Results.Dispose();
             }
+        }
 
-            foreach (Entity building in condemn)
+        private void DisposePending()
+        {
+            if (m_Pending)
             {
-                if (!haveIcons)
-                {
-                    icons = m_IconCommandSystem.CreateCommandBuffer();
-                    haveIcons = true;
-                }
-
-                if (m_Examples.Count < 10)
-                {
-                    m_Examples.Add(Describe(building));
-                }
-
-                EntityManager.AddComponent<Condemned>(building);
-                if (!EntityManager.HasComponent<Destroyed>(building) && !EntityManager.HasComponent<Abandoned>(building))
-                {
-                    icons.Add(building, config.m_CondemnedNotification, IconPriority.FatalProblem);
-                }
-
-                m_Condemned++;
+                m_Handle.Complete();
+                m_Buildings.Dispose();
+                m_Results.Dispose();
+                m_Pending = false;
             }
         }
 
@@ -340,69 +443,334 @@ namespace RealZoningBuildingThemes.Zones
             return text + ")";
         }
 
-        /// <summary>The game's two tests: a placeholder parent of the same zone, or the zoning under the lot.</summary>
-        private bool IsValid(NativeQuadTree<Entity, Bounds2> zoneTree, Entity building)
+        /// <summary>A building whose state should change: lift its condemnation (valid) or condemn it.</summary>
+        private struct Result
         {
-            Entity prefab = EntityManager.GetComponentData<PrefabRef>(building).m_Prefab;
-            var spawnable = EntityManager.GetComponentData<SpawnableBuildingData>(prefab);
+            public Entity m_Building;
+            public bool m_Valid;
+        }
 
-            if (EntityManager.HasComponent<Attached>(building))
+        /// <summary>Grown (spawnable, non-signature) buildings whose bounds meet a changed zone area, as the game finds them.</summary>
+        [BurstCompile]
+        private struct FindBuildingsJob : IJobParallelForDefer
+        {
+            [ReadOnly] public NativeArray<Bounds2> m_Bounds;
+            [ReadOnly] public NativeQuadTree<Entity, QuadTreeBoundsXZ> m_SearchTree;
+            [ReadOnly] public ComponentLookup<Building> m_BuildingData;
+            [ReadOnly] public ComponentLookup<PrefabRef> m_PrefabRefData;
+            [ReadOnly] public ComponentLookup<SpawnableBuildingData> m_SpawnableData;
+            [ReadOnly] public ComponentLookup<SignatureBuildingData> m_SignatureData;
+            public NativeQueue<Entity>.ParallelWriter m_Queue;
+
+            public void Execute(int index)
             {
-                Entity parent = EntityManager.GetComponentData<Attached>(building).m_Parent;
-                if (EntityManager.HasComponent<PrefabRef>(parent))
+                var iterator = new Iterator
                 {
-                    Entity parentPrefab = EntityManager.GetComponentData<PrefabRef>(parent).m_Prefab;
-                    if (EntityManager.HasComponent<PlaceholderBuildingData>(parentPrefab) &&
-                        EntityManager.GetComponentData<PlaceholderBuildingData>(parentPrefab).m_ZonePrefab == spawnable.m_ZonePrefab)
+                    m_Bounds = m_Bounds[index],
+                    m_BuildingData = m_BuildingData,
+                    m_PrefabRefData = m_PrefabRefData,
+                    m_SpawnableData = m_SpawnableData,
+                    m_SignatureData = m_SignatureData,
+                    m_Queue = m_Queue,
+                };
+                m_SearchTree.Iterate(ref iterator);
+            }
+
+            private struct Iterator : INativeQuadTreeIterator<Entity, QuadTreeBoundsXZ>, IUnsafeQuadTreeIterator<Entity, QuadTreeBoundsXZ>
+            {
+                public Bounds2 m_Bounds;
+                public ComponentLookup<Building> m_BuildingData;
+                public ComponentLookup<PrefabRef> m_PrefabRefData;
+                public ComponentLookup<SpawnableBuildingData> m_SpawnableData;
+                public ComponentLookup<SignatureBuildingData> m_SignatureData;
+                public NativeQueue<Entity>.ParallelWriter m_Queue;
+
+                public bool Intersect(QuadTreeBoundsXZ bounds)
+                {
+                    return MathUtils.Intersect(bounds.m_Bounds.xz, m_Bounds);
+                }
+
+                public void Iterate(QuadTreeBoundsXZ bounds, Entity entity)
+                {
+                    if (!MathUtils.Intersect(bounds.m_Bounds.xz, m_Bounds) || !m_BuildingData.HasComponent(entity) || !m_PrefabRefData.HasComponent(entity))
                     {
-                        return true;
+                        return;
+                    }
+
+                    Entity prefab = m_PrefabRefData[entity].m_Prefab;
+                    if (m_SpawnableData.HasComponent(prefab) && !m_SignatureData.HasComponent(prefab))
+                    {
+                        m_Queue.Enqueue(entity);
                     }
                 }
             }
-
-            // The home zone counts unless its prefab is switched off (the game then condemns);
-            // our zones that allow the building always count.
-            ZoneType home = ZoneType.None;
-            if (EntityManager.HasComponent<ZoneData>(spawnable.m_ZonePrefab))
-            {
-                home = EntityManager.GetComponentData<ZoneData>(spawnable.m_ZonePrefab).m_ZoneType;
-                if (!home.Equals(ZoneType.None) && !EntityManager.IsComponentEnabled<PrefabData>(spawnable.m_ZonePrefab))
-                {
-                    home = ZoneType.None;
-                }
-            }
-
-            List<ushort> zones = m_AllowList.GetAllowingZones(prefab);
-            var lot = EntityManager.GetComponentData<BuildingData>(prefab).m_LotSize;
-            var transform = EntityManager.GetComponentData<Transform>(building);
-            return ZoneLotTest.LotIsAllowed(EntityManager, zoneTree, transform, lot, home, zones);
         }
 
-        /// <summary>Grown (spawnable, non-signature) buildings whose bounds meet an updated zone area.</summary>
-        private struct BuildingFinder : INativeQuadTreeIterator<Entity, QuadTreeBoundsXZ>, IUnsafeQuadTreeIterator<Entity, QuadTreeBoundsXZ>
+        /// <summary>Sorts the found buildings and drops duplicates (a building can meet several changed areas).</summary>
+        [BurstCompile]
+        private struct CollectJob : IJob
         {
-            public Bounds2 m_Bounds;
-            public EntityManager m_EntityManager;
-            public HashSet<Entity> m_Results;
+            public NativeQueue<Entity> m_Queue;
+            public NativeList<Entity> m_List;
 
-            public bool Intersect(QuadTreeBoundsXZ bounds)
+            public void Execute()
             {
-                return MathUtils.Intersect(bounds.m_Bounds.xz, m_Bounds);
-            }
-
-            public void Iterate(QuadTreeBoundsXZ bounds, Entity entity)
-            {
-                if (!MathUtils.Intersect(bounds.m_Bounds.xz, m_Bounds) || !m_EntityManager.HasComponent<Building>(entity) || !m_EntityManager.HasComponent<PrefabRef>(entity))
+                int count = m_Queue.Count;
+                if (count == 0)
                 {
                     return;
                 }
 
-                Entity prefab = m_EntityManager.GetComponentData<PrefabRef>(entity).m_Prefab;
-                if (m_EntityManager.HasComponent<SpawnableBuildingData>(prefab) && !m_EntityManager.HasComponent<SignatureBuildingData>(prefab) &&
-                    m_EntityManager.HasComponent<BuildingData>(prefab) && m_EntityManager.HasComponent<Transform>(entity))
+                m_List.ResizeUninitialized(count);
+                for (int i = 0; i < count; i++)
                 {
-                    m_Results.Add(entity);
+                    m_List[i] = m_Queue.Dequeue();
                 }
+
+                m_List.Sort(new EntityComparer());
+                Entity last = Entity.Null;
+                int write = 0;
+                for (int read = 0; read < m_List.Length; read++)
+                {
+                    Entity entity = m_List[read];
+                    if (entity != last)
+                    {
+                        m_List[write++] = entity;
+                        last = entity;
+                    }
+                }
+
+                if (write < m_List.Length)
+                {
+                    m_List.RemoveRangeSwapBack(write, m_List.Length - write);
+                }
+            }
+
+            private struct EntityComparer : IComparer<Entity>
+            {
+                public int Compare(Entity x, Entity y) => x.Index - y.Index;
+            }
+        }
+
+        /// <summary>
+        /// The game's two tests (a placeholder parent of the same zone, or the zoning under the lot),
+        /// with one change: a cell passes when it is the building's home zone (unless that zone's
+        /// prefab is switched off) or one of our zones that allows the building. Reports only
+        /// buildings whose condemned state should change.
+        /// </summary>
+        [BurstCompile]
+        private struct CheckJob : IJobParallelForDefer
+        {
+            [ReadOnly] public NativeArray<Entity> m_Buildings;
+            [ReadOnly] public NativeQuadTree<Entity, Bounds2> m_SearchTree;
+            [ReadOnly] public NativeParallelMultiHashMap<Entity, ushort> m_Allowed;
+            [ReadOnly] public ComponentLookup<Condemned> m_CondemnedData;
+            [ReadOnly] public ComponentLookup<Deleted> m_DeletedData;
+            [ReadOnly] public ComponentLookup<Temp> m_TempData;
+            [ReadOnly] public ComponentLookup<Block> m_BlockData;
+            [ReadOnly] public ComponentLookup<ValidArea> m_ValidAreaData;
+            [ReadOnly] public ComponentLookup<Transform> m_TransformData;
+            [ReadOnly] public ComponentLookup<Attached> m_AttachedData;
+            [ReadOnly] public ComponentLookup<PrefabRef> m_PrefabRefData;
+            [ReadOnly] public ComponentLookup<PrefabData> m_PrefabData;
+            [ReadOnly] public ComponentLookup<BuildingData> m_BuildingData;
+            [ReadOnly] public ComponentLookup<SpawnableBuildingData> m_SpawnableData;
+            [ReadOnly] public ComponentLookup<PlaceholderBuildingData> m_PlaceholderData;
+            [ReadOnly] public ComponentLookup<ZoneData> m_ZoneData;
+            [ReadOnly] public BufferLookup<Cell> m_Cells;
+            public bool m_EditorMode;
+            public NativeQueue<Result>.ParallelWriter m_Results;
+
+            public void Execute(int index)
+            {
+                Entity building = m_Buildings[index];
+                if (m_DeletedData.HasComponent(building) || m_TempData.HasComponent(building) ||
+                    !m_TransformData.HasComponent(building) || !m_PrefabRefData.HasComponent(building))
+                {
+                    return;
+                }
+
+                Entity prefab = m_PrefabRefData[building].m_Prefab;
+                if (!m_BuildingData.HasComponent(prefab) || !m_SpawnableData.HasComponent(prefab))
+                {
+                    return;
+                }
+
+                SpawnableBuildingData spawnable = m_SpawnableData[prefab];
+                bool valid = m_EditorMode || ValidateAttachedParent(building, spawnable) || ValidateZoneBlocks(building, prefab, spawnable);
+                if (valid == m_CondemnedData.HasComponent(building))
+                {
+                    m_Results.Enqueue(new Result { m_Building = building, m_Valid = valid });
+                }
+            }
+
+            private bool ValidateAttachedParent(Entity building, SpawnableBuildingData spawnable)
+            {
+                if (m_AttachedData.HasComponent(building))
+                {
+                    Entity parent = m_AttachedData[building].m_Parent;
+                    if (m_PrefabRefData.HasComponent(parent))
+                    {
+                        Entity parentPrefab = m_PrefabRefData[parent].m_Prefab;
+                        if (m_PlaceholderData.HasComponent(parentPrefab) && m_PlaceholderData[parentPrefab].m_ZonePrefab == spawnable.m_ZonePrefab)
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            private bool ValidateZoneBlocks(Entity building, Entity prefab, SpawnableBuildingData spawnable)
+            {
+                // The home zone counts unless its prefab is switched off (the game then condemns);
+                // our zones that allow the building always count.
+                ZoneType home = ZoneType.None;
+                if (m_ZoneData.HasComponent(spawnable.m_ZonePrefab))
+                {
+                    home = m_ZoneData[spawnable.m_ZonePrefab].m_ZoneType;
+                    if (!home.Equals(ZoneType.None) && !m_PrefabData.IsComponentEnabled(spawnable.m_ZonePrefab))
+                    {
+                        home = ZoneType.None;
+                    }
+                }
+
+                var zones = new FixedList128Bytes<ushort>();
+                if (m_Allowed.TryGetFirstValue(prefab, out ushort zone, out NativeParallelMultiHashMapIterator<Entity> it))
+                {
+                    do
+                    {
+                        if (zones.Length < zones.Capacity)
+                        {
+                            zones.Add(zone);
+                        }
+                    }
+                    while (m_Allowed.TryGetNextValue(out zone, ref it));
+                }
+
+                Transform transform = m_TransformData[building];
+                int2 lotSize = m_BuildingData[prefab].m_LotSize;
+                float2 right = math.rotate(transform.m_Rotation, new float3(8f, 0f, 0f)).xz;
+                float2 forward = math.rotate(transform.m_Rotation, new float3(0f, 0f, 8f)).xz;
+                float2 halfRight = right * (lotSize.x * 0.5f - 0.5f);
+                float2 halfForward = forward * (lotSize.y * 0.5f - 0.5f);
+                float2 extent = math.abs(halfForward) + math.abs(halfRight);
+
+                var validated = new NativeArray<bool>(lotSize.x * lotSize.y, Allocator.Temp, NativeArrayOptions.ClearMemory);
+                var iterator = new LotIterator
+                {
+                    m_Bounds = new Bounds2(transform.m_Position.xz - extent, transform.m_Position.xz + extent),
+                    m_LotSize = lotSize,
+                    m_StartPosition = transform.m_Position.xz + halfForward + halfRight,
+                    m_Right = right,
+                    m_Forward = forward,
+                    m_Home = home,
+                    m_HasHome = !home.Equals(ZoneType.None),
+                    m_Zones = zones,
+                    m_Validated = validated,
+                    m_BlockData = m_BlockData,
+                    m_ValidAreaData = m_ValidAreaData,
+                    m_Cells = m_Cells,
+                };
+                m_SearchTree.Iterate(ref iterator);
+
+                bool ok = (iterator.m_Directions & CellFlags.Roadside) != 0;
+                for (int i = 0; i < validated.Length; i++)
+                {
+                    ok &= validated[i];
+                }
+
+                validated.Dispose();
+                return ok;
+            }
+        }
+
+        /// <summary>The game's lot iterator (ZoneCheckSystem), with our zones counted as described on CheckJob.</summary>
+        private struct LotIterator : INativeQuadTreeIterator<Entity, Bounds2>, IUnsafeQuadTreeIterator<Entity, Bounds2>
+        {
+            public Bounds2 m_Bounds;
+            public int2 m_LotSize;
+            public float2 m_StartPosition;
+            public float2 m_Right;
+            public float2 m_Forward;
+            public ZoneType m_Home;
+            public bool m_HasHome;
+            public FixedList128Bytes<ushort> m_Zones;
+            public CellFlags m_Directions;
+            public NativeArray<bool> m_Validated;
+            public ComponentLookup<Block> m_BlockData;
+            public ComponentLookup<ValidArea> m_ValidAreaData;
+            public BufferLookup<Cell> m_Cells;
+
+            public bool Intersect(Bounds2 bounds)
+            {
+                return MathUtils.Intersect(bounds, m_Bounds);
+            }
+
+            public void Iterate(Bounds2 bounds, Entity blockEntity)
+            {
+                if (!MathUtils.Intersect(bounds, m_Bounds) || !m_ValidAreaData.HasComponent(blockEntity) ||
+                    !m_BlockData.HasComponent(blockEntity) || !m_Cells.HasBuffer(blockEntity))
+                {
+                    return;
+                }
+
+                ValidArea validArea = m_ValidAreaData[blockEntity];
+                if (validArea.m_Area.y <= validArea.m_Area.x)
+                {
+                    return;
+                }
+
+                var target = new Block { m_Direction = m_Forward };
+                Block block = m_BlockData[blockEntity];
+                DynamicBuffer<Cell> cells = m_Cells[blockEntity];
+
+                float2 rowStart = m_StartPosition;
+                for (int y = 0; y < m_LotSize.y; y++)
+                {
+                    float2 position = rowStart;
+                    for (int x = 0; x < m_LotSize.x; x++)
+                    {
+                        int2 cellIndex = ZoneUtils.GetCellIndex(block, position);
+                        if (math.all((cellIndex >= validArea.m_Area.xz) & (cellIndex < validArea.m_Area.yw)))
+                        {
+                            Cell cell = cells[cellIndex.y * block.m_Size.x + cellIndex.x];
+                            if ((cell.m_State & CellFlags.Visible) != 0 && ZoneOk(cell.m_Zone))
+                            {
+                                m_Validated[y * m_LotSize.x + x] = true;
+                                if ((cell.m_State & (CellFlags.Roadside | CellFlags.RoadLeft | CellFlags.RoadRight | CellFlags.RoadBack)) != 0)
+                                {
+                                    CellFlags roadDirection = ZoneUtils.GetRoadDirection(target, block, cell.m_State);
+                                    int4 mask = math.select(int4.zero, new int4(512, 4, 1024, 2048), new bool4(new int2(x, y) == 0, new int2(x, y) == m_LotSize - 1));
+                                    m_Directions |= (CellFlags)((uint)roadDirection & (uint)(ushort)math.csum(mask));
+                                }
+                            }
+                        }
+
+                        position -= m_Right;
+                    }
+
+                    rowStart -= m_Forward;
+                }
+            }
+
+            private bool ZoneOk(ZoneType zone)
+            {
+                if (m_HasHome && zone.Equals(m_Home))
+                {
+                    return true;
+                }
+
+                for (int i = 0; i < m_Zones.Length; i++)
+                {
+                    if (m_Zones[i] == zone.m_Index)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
             }
         }
     }
