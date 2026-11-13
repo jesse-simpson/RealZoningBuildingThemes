@@ -95,6 +95,20 @@ namespace RealZoningBuildingThemes.Zones
 
         protected override void OnUpdate()
         {
+            long perfStart = Perf.Start();
+            try
+            {
+                OnUpdateTimed();
+            }
+            finally
+            {
+                Perf.Stop("Allow-lists", perfStart);
+            }
+        }
+
+        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
+        private void OnUpdateTimed()
+        {
             int buildings = m_BuildingQuery.CalculateEntityCount();
             int zones = m_OurZonesQuery.CalculateEntityCount();
             bool buildingsChanged = buildings != m_LastBuildingCount;

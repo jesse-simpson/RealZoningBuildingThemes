@@ -64,6 +64,8 @@ namespace RealZoningBuildingThemes.Zones
         private int m_TimedPasses;
         private double m_TimedMs;
         private double m_MaxMs;
+        private int m_PassIndex;   // TEMPORARY (perf-check)
+        private bool m_Probe;      // TEMPORARY (perf-check)
 
         // Same pace as the game's ZoneSpawnSystem.
         public override int GetUpdateInterval(SystemUpdatePhase phase) => 16;
@@ -126,10 +128,17 @@ namespace RealZoningBuildingThemes.Zones
         {
             try
             {
+                // TEMPORARY (perf-check): every 32nd pass waits for the background jobs to time them.
+                m_Probe = (++m_PassIndex & 31) == 0;
                 m_Timer.Restart();
                 UpdateSpawn();
                 m_Timer.Stop();
                 double ms = m_Timer.Elapsed.TotalMilliseconds;
+                if (!m_Probe)
+                {
+                    Perf.Add("Spawner", ms);
+                }
+
                 m_TimedMs += ms;
                 m_MaxMs = System.Math.Max(m_MaxMs, ms);
                 if (++m_TimedPasses >= 4096)
@@ -292,7 +301,25 @@ namespace RealZoningBuildingThemes.Zones
                 JobHandle.CombineDependencies(commercialDemandJob, industrialDemandJob, storageDemandJob));
 
             JobHandle vanillaHandle = vanilla.ScheduleParallel(m_VacantLotsQuery, inputs);
+            if (m_Probe)
+            {
+                // TEMPORARY (perf-check): wait for the inputs, then time each evaluation job alone.
+                long t = Perf.Start();
+                inputs.Complete();
+                Perf.Stop("probe: spawn inputs (demand, pollution; same as the game's)", t);
+                t = Perf.Start();
+                vanillaHandle.Complete();
+                Perf.Stop("probe: spawn evaluation, game zones (the game's own job)", t);
+            }
+
             JobHandle evaluateHandle = ours.ScheduleParallel(m_VacantLotsQuery, vanillaHandle);
+            if (m_Probe)
+            {
+                long t = Perf.Start();
+                evaluateHandle.Complete();
+                Perf.Stop("probe: spawn evaluation, custom zones (the mod's job)", t);
+            }
+
             JobHandle spawnHandle = spawnBuildingJob.Schedule(3, 1, JobHandle.CombineDependencies(evaluateHandle, searchTreeJob));
 
             m_ResourceSystem.AddPrefabsReader(evaluateHandle);

@@ -77,6 +77,20 @@ namespace RealZoningBuildingThemes.Zones
 
         protected override void OnUpdate()
         {
+            long perfStart = Perf.Start();
+            try
+            {
+                OnUpdateTimed();
+            }
+            finally
+            {
+                Perf.Stop("Zone setup (toolbar)", perfStart);
+            }
+        }
+
+        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
+        private void OnUpdateTimed()
+        {
             // The unlock event only has to live one frame.
             if (m_UnlockEvent != Entity.Null)
             {

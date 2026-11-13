@@ -22,6 +22,20 @@ namespace RealZoningBuildingThemes.Zones
 
         protected override void OnUpdate()
         {
+            long perfStart = Perf.Start();
+            try
+            {
+                OnUpdateTimed();
+            }
+            finally
+            {
+                Perf.Stop("Zone init", perfStart);
+            }
+        }
+
+        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
+        private void OnUpdateTimed()
+        {
             var entities = m_CreatedQuery.ToEntityArray(Allocator.Temp);
             try
             {

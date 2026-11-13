@@ -74,6 +74,20 @@ namespace RealZoningBuildingThemes.Zones
 
         protected override void OnUpdate()
         {
+            long perfStart = Perf.Start();
+            try
+            {
+                OnUpdateTimed();
+            }
+            finally
+            {
+                Perf.Stop("Pardon pass", perfStart);
+            }
+        }
+
+        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
+        private void OnUpdateTimed()
+        {
             var entities = m_CondemnedQuery.ToEntityArray(Allocator.Temp);
             try
             {

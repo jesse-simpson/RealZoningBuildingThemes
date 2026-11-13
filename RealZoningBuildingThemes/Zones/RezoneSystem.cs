@@ -87,6 +87,20 @@ namespace RealZoningBuildingThemes.Zones
 
         protected override void OnUpdate()
         {
+            long perfStart = Perf.Start();
+            try
+            {
+                OnUpdateTimed();
+            }
+            finally
+            {
+                Perf.Stop("Rezoning", perfStart);
+            }
+        }
+
+        // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
+        private void OnUpdateTimed()
+        {
             while (m_Requests.Count > 0)
             {
                 Request request = m_Requests[0];
