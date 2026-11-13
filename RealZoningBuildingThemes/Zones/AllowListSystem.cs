@@ -31,6 +31,7 @@ namespace RealZoningBuildingThemes.Zones
         }
 
         private static bool s_RebuildRequested;
+        private static bool s_SurveyWritten; // TEMPORARY (setback survey)
 
         private PrefabSystem m_PrefabSystem;
         private EntityQuery m_BuildingQuery;
@@ -171,6 +172,20 @@ namespace RealZoningBuildingThemes.Zones
             }
 
             Mod.log.Info($"AllowList: indexed {m_Index.Count} growables in {timer.ElapsedMilliseconds} ms ({custom} custom assets from {sources.Count} sources).");
+
+            // TEMPORARY: front setback survey, once per session. Remove after use.
+            if (!s_SurveyWritten)
+            {
+                s_SurveyWritten = true;
+                try
+                {
+                    BuildingIndex.WriteSetbackSurvey(EntityManager, m_Index);
+                }
+                catch (System.Exception e)
+                {
+                    Mod.log.Warn($"Setback survey failed: {e.GetType().Name}: {e.Message}");
+                }
+            }
         }
 
         private void ApplyRules()

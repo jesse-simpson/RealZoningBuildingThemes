@@ -366,6 +366,40 @@ namespace RealZoningBuildingThemes.Zones
             return false;
         }
 
+        /// <summary>
+        /// TEMPORARY survey for a front setback filter: writes every indexed growable's model bounds
+        /// and lot size to ModsData\RealZoningBuildingThemes\setback-survey.csv. Remove after use.
+        /// </summary>
+        public static void WriteSetbackSurvey(EntityManager em, List<BuildingInfo> index)
+        {
+            string path = System.IO.Path.Combine(Colossal.PSI.Environment.EnvPath.kUserDataPath, "ModsData", "RealZoningBuildingThemes", "setback-survey.csv");
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("name,family,use,zonetype,theme,origin,source,level,signature,lot_w,lot_d,height,min_x,max_x,min_z,max_z,side_min,front_plus_z,back_minus_z,submeshes");
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string Q(string s) => "\"" + (s ?? string.Empty).Replace("\"", "\"\"") + "\"";
+            foreach (BuildingInfo b in index)
+            {
+                int subs = em.HasBuffer<SubMesh>(b.Entity) ? em.GetBuffer<SubMesh>(b.Entity, true).Length : 0;
+                string bounds = ",,,,,,";
+                if (TryGetMeshBounds(em, b.Entity, out float3 min, out float3 max))
+                {
+                    float halfW = b.LotWidth * kCellSize * 0.5f;
+                    float halfD = b.LotDepth * kCellSize * 0.5f;
+                    float side = Math.Min(min.x + halfW, halfW - max.x);
+                    bounds = string.Format(inv, "{0:0.###},{1:0.###},{2:0.###},{3:0.###},{4:0.###},{5:0.###},{6:0.###}",
+                        min.x, max.x, min.z, max.z, side, halfD - max.z, min.z + halfD);
+                }
+
+                sb.Append(Q(b.Name)).Append(',').Append(Q(b.Family)).Append(',').Append(b.Use).Append(',').Append(b.ZoneType).Append(',')
+                  .Append(Q(b.Theme)).Append(',').Append(b.Origin).Append(',').Append(Q(b.Source)).Append(',')
+                  .Append(b.Level).Append(',').Append(b.Signature ? 1 : 0).Append(',').Append(b.LotWidth).Append(',').Append(b.LotDepth).Append(',')
+                  .Append(b.Height.ToString("0.##", inv)).Append(',').Append(bounds).Append(',').Append(subs).AppendLine();
+            }
+
+            System.IO.File.WriteAllText(path, sb.ToString());
+            Mod.log.Info($"Setback survey: wrote {index.Count} buildings to {path}");
+        }
+
         private static bool TryGetMeshBounds(EntityManager em, Entity prefab, out float3 min, out float3 max)
         {
             min = new float3(float.MaxValue);
