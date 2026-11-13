@@ -45,6 +45,16 @@ namespace RealZoningBuildingThemes.Zones
         private readonly HashSet<Entity> m_Pardoned = new HashSet<Entity>();
         private readonly HashSet<Entity> m_Kept = new HashSet<Entity>();
         private int m_PardonEvents;
+
+        // Condemned buildings already tested and left condemned. They are not tested again until
+        // the rules change (a rule change can make a zone allow them) or they stop being
+        // condemned. Without this, every condemned building in the city was re-tested on every
+        // update, which cost the most exactly when many buildings were condemned.
+        private readonly HashSet<Entity> m_Tested = new HashSet<Entity>();
+        private readonly List<Entity> m_Gone = new List<Entity>();
+        private int m_TestedRulesVersion = -1;
+        private int m_Updates;
+        private const int kPruneInterval = 256;
         private System.DateTime m_LastLog = System.DateTime.MinValue;
 
         protected override void OnCreate()
@@ -88,6 +98,17 @@ namespace RealZoningBuildingThemes.Zones
         // TEMPORARY (perf-check): the original OnUpdate, timed by the wrapper above.
         private void OnUpdateTimed()
         {
+            if (m_AllowList.RulesVersion != m_TestedRulesVersion)
+            {
+                m_Tested.Clear();
+                m_TestedRulesVersion = m_AllowList.RulesVersion;
+            }
+
+            if (++m_Updates % kPruneInterval == 0)
+            {
+                PruneTested();
+            }
+
             var entities = m_CondemnedQuery.ToEntityArray(Allocator.Temp);
             try
             {
@@ -100,6 +121,11 @@ namespace RealZoningBuildingThemes.Zones
                 for (int i = 0; i < entities.Length; i++)
                 {
                     Entity building = entities[i];
+                    if (!m_Tested.Add(building))
+                    {
+                        continue; // tested before under the same rules, and left condemned
+                    }
+
                     Entity prefab = EntityManager.GetComponentData<PrefabRef>(building).m_Prefab;
                     List<ushort> zones = m_AllowList.GetAllowingZones(prefab);
                     if (zones == null || !EntityManager.HasComponent<BuildingData>(prefab))
@@ -130,6 +156,7 @@ namespace RealZoningBuildingThemes.Zones
                     }
 
                     EntityManager.RemoveComponent<Condemned>(building);
+                    m_Tested.Remove(building); // test it again if it is condemned again
                     icons.Remove(building, condemnedIcon);
                     m_Pardoned.Add(building);
                     m_PardonEvents++;
@@ -154,6 +181,26 @@ namespace RealZoningBuildingThemes.Zones
                 m_Kept.Clear();
                 m_PardonEvents = 0;
             }
+        }
+
+        /// <summary>Forgets tested buildings that are gone or no longer condemned.</summary>
+        private void PruneTested()
+        {
+            m_Gone.Clear();
+            foreach (Entity building in m_Tested)
+            {
+                if (!EntityManager.Exists(building) || !EntityManager.HasComponent<Condemned>(building))
+                {
+                    m_Gone.Add(building);
+                }
+            }
+
+            foreach (Entity building in m_Gone)
+            {
+                m_Tested.Remove(building);
+            }
+
+            m_Gone.Clear();
         }
     }
 }

@@ -73,6 +73,25 @@ namespace RealZoningBuildingThemes.Zones
         // prefab then and the frame the materials arrived (-1 while still gathering).
         private readonly Dictionary<Entity, (Entity prefab, int arrivedFrame)> m_Awaiting = new Dictionary<Entity, (Entity, int)>();
 
+        // Level-ups already looked at, with the prefab they were left (or set) to; they are not
+        // looked at again unless something changes that prefab. Pruned now and then.
+        private readonly Dictionary<Entity, Entity> m_Approved = new Dictionary<Entity, Entity>();
+
+        // Reused lists, so the per-update checks allocate nothing.
+        private readonly List<Entity> m_Done = new List<Entity>();
+        private readonly List<Entity> m_Arrived = new List<Entity>();
+
+        // The game's zone search tree, fetched only when a decision needs it and at most once
+        // per update: fetching it waits for the game's zone jobs, which is the costly part.
+        private NativeQuadTree<Entity, Bounds2> m_Tree;
+        private bool m_HaveTree;
+
+        // Missed level-ups are looked for every few updates; level-ups take minutes of game time.
+        private const int kMissedLevelUpInterval = 4;
+
+        // How often the remembered buildings are pruned (updates).
+        private const int kPruneInterval = 256;
+
         // Blocked level-ups, summarised in the log about once a minute.
         private int m_BlockedCount;
         private string m_BlockedSample;
@@ -117,6 +136,10 @@ namespace RealZoningBuildingThemes.Zones
                 },
             });
 
+            // Only chunks where a materials request was added or changed are looked at; buildings
+            // already looked at are skipped (m_MaterialsChecked).
+            m_MaterialsQuery.SetChangedVersionFilter(ComponentType.ReadOnly<ResourceNeeding>());
+
             m_BuildingConfigQuery = GetEntityQuery(ComponentType.ReadOnly<BuildingConfigurationData>());
             m_AllowList = World.GetOrCreateSystemManaged<AllowListSystem>();
             m_ZoneSearch = World.GetOrCreateSystemManaged<Game.Zones.SearchSystem>();
@@ -144,32 +167,37 @@ namespace RealZoningBuildingThemes.Zones
         private void OnUpdateTimed()
         {
             m_Frame++;
-            bool haveMaterials = !m_MaterialsQuery.IsEmpty;
-            bool haveConstruction = !m_UnderConstructionQuery.IsEmpty;
-            if (!haveMaterials && m_MaterialsChecked.Count > 0)
+            if (m_MaterialsQuery.IsEmptyIgnoreFilter && m_MaterialsChecked.Count > 0)
             {
                 m_MaterialsChecked.Clear();
             }
 
-            if (haveMaterials || haveConstruction || m_Awaiting.Count > 0)
+            bool haveMaterials = !m_MaterialsQuery.IsEmpty;            // changed chunks only
+            bool haveConstruction = !m_UnderConstructionQuery.IsEmpty;  // changed chunks only
+            bool checkMissed = m_Awaiting.Count > 0 && m_Frame % kMissedLevelUpInterval == 0;
+            if (m_Frame % kPruneInterval == 0)
             {
-                var tree = m_ZoneSearch.GetSearchTree(true, out JobHandle deps);
-                deps.Complete();
+                Prune();
+            }
+
+            if (haveMaterials || haveConstruction || checkMissed)
+            {
+                m_HaveTree = false;
                 try
                 {
                     if (haveMaterials)
                     {
-                        CheckMaterialRequests(tree);
+                        CheckMaterialRequests();
                     }
 
-                    if (m_Awaiting.Count > 0)
+                    if (checkMissed)
                     {
-                        CheckMissedLevelUps(tree);
+                        CheckMissedLevelUps();
                     }
 
                     if (haveConstruction)
                     {
-                        CheckLevelUps(tree);
+                        CheckLevelUps();
                     }
                 }
                 catch (System.Exception e)
@@ -186,7 +214,11 @@ namespace RealZoningBuildingThemes.Zones
                 }
                 finally
                 {
-                    m_ZoneSearch.AddSearchTreeReader(default(JobHandle));
+                    if (m_HaveTree)
+                    {
+                        m_ZoneSearch.AddSearchTreeReader(default(JobHandle));
+                        m_HaveTree = false;
+                    }
                 }
             }
 
@@ -198,23 +230,62 @@ namespace RealZoningBuildingThemes.Zones
             }
         }
 
+        /// <summary>The game's zone search tree, fetched on first use in an update.</summary>
+        private NativeQuadTree<Entity, Bounds2> Tree
+        {
+            get
+            {
+                if (!m_HaveTree)
+                {
+                    m_Tree = m_ZoneSearch.GetSearchTree(true, out JobHandle deps);
+                    deps.Complete();
+                    m_HaveTree = true;
+                }
+
+                return m_Tree;
+            }
+        }
+
+        /// <summary>Forgets buildings whose materials request or level-up has ended.</summary>
+        private void Prune()
+        {
+            m_Done.Clear();
+            foreach (Entity building in m_MaterialsChecked)
+            {
+                if (!EntityManager.Exists(building) || !EntityManager.HasBuffer<ResourceNeeding>(building))
+                {
+                    m_Done.Add(building);
+                }
+            }
+
+            foreach (Entity building in m_Done)
+            {
+                m_MaterialsChecked.Remove(building);
+            }
+
+            m_Done.Clear();
+            foreach (var kv in m_Approved)
+            {
+                if (!EntityManager.Exists(kv.Key) || !EntityManager.HasComponent<UnderConstruction>(kv.Key))
+                {
+                    m_Done.Add(kv.Key);
+                }
+            }
+
+            foreach (Entity building in m_Done)
+            {
+                m_Approved.Remove(building);
+            }
+
+            m_Done.Clear();
+        }
+
         /// <summary>Point 1: cancel material requests for level-ups the zone does not allow.</summary>
-        private void CheckMaterialRequests(NativeQuadTree<Entity, Bounds2> tree)
+        private void CheckMaterialRequests()
         {
             var entities = m_MaterialsQuery.ToEntityArray(Allocator.Temp);
             try
             {
-                if (m_MaterialsChecked.Count > 0)
-                {
-                    var present = new HashSet<Entity>();
-                    for (int i = 0; i < entities.Length; i++)
-                    {
-                        present.Add(entities[i]);
-                    }
-
-                    m_MaterialsChecked.RemoveWhere(e => !present.Contains(e));
-                }
-
                 for (int i = 0; i < entities.Length; i++)
                 {
                     Entity building = entities[i];
@@ -224,7 +295,7 @@ namespace RealZoningBuildingThemes.Zones
                     }
 
                     Entity current = EntityManager.GetComponentData<PrefabRef>(building).m_Prefab;
-                    if (!TryGetContext(tree, building, current, out BuildingInfo from, out AllowListSystem.ZoneRules zone, out float maxHeight))
+                    if (!TryGetContext(building, current, out BuildingInfo from, out AllowListSystem.ZoneRules zone, out float maxHeight))
                     {
                         continue;
                     }
@@ -256,10 +327,12 @@ namespace RealZoningBuildingThemes.Zones
         }
 
         /// <summary>Point 3: materials arrived but the game started no level-up; start the zone's own.</summary>
-        private void CheckMissedLevelUps(NativeQuadTree<Entity, Bounds2> tree)
+        private void CheckMissedLevelUps()
         {
-            var done = new List<Entity>();
-            var arrived = new List<Entity>();
+            List<Entity> done = m_Done;
+            List<Entity> arrived = m_Arrived;
+            done.Clear();
+            arrived.Clear();
             foreach (var kv in m_Awaiting)
             {
                 Entity building = kv.Key;
@@ -286,7 +359,7 @@ namespace RealZoningBuildingThemes.Zones
                 else if (m_Frame - kv.Value.arrivedFrame >= kMissedLevelUpDelay)
                 {
                     done.Add(building);
-                    StartLevelUp(tree, building, kv.Value.prefab);
+                    StartLevelUp(building, kv.Value.prefab);
                 }
             }
 
@@ -299,12 +372,15 @@ namespace RealZoningBuildingThemes.Zones
             {
                 m_Awaiting.Remove(building);
             }
+
+            done.Clear();
+            arrived.Clear();
         }
 
-        private void StartLevelUp(NativeQuadTree<Entity, Bounds2> tree, Entity building, Entity current)
+        private void StartLevelUp(Entity building, Entity current)
         {
             if (EntityManager.HasComponent<Abandoned>(building) || EntityManager.HasComponent<Destroyed>(building) || EntityManager.HasComponent<Condemned>(building) ||
-                !TryGetContext(tree, building, current, out BuildingInfo from, out AllowListSystem.ZoneRules zone, out float maxHeight))
+                !TryGetContext(building, current, out BuildingInfo from, out AllowListSystem.ZoneRules zone, out float maxHeight))
             {
                 return;
             }
@@ -316,6 +392,7 @@ namespace RealZoningBuildingThemes.Zones
             }
 
             EntityManager.AddComponentData(building, new UnderConstruction { m_NewPrefab = target, m_Progress = byte.MaxValue });
+            m_Approved[building] = target;
             if (TryGetConfig(out BuildingConfigurationData config))
             {
                 m_IconCommandSystem.CreateCommandBuffer().Add(building, config.m_LevelUpNotification, IconPriority.Info, IconClusterLayer.Transaction);
@@ -326,7 +403,7 @@ namespace RealZoningBuildingThemes.Zones
         }
 
         /// <summary>Point 2: replace or cancel the game's level-up choice.</summary>
-        private void CheckLevelUps(NativeQuadTree<Entity, Bounds2> tree)
+        private void CheckLevelUps()
         {
             // Level-ups only: their new prefab differs from the current one (new buildings
             // under construction have none).
@@ -339,7 +416,10 @@ namespace RealZoningBuildingThemes.Zones
                     Entity building = entities[i];
                     var construction = EntityManager.GetComponentData<UnderConstruction>(building);
                     Entity current = EntityManager.GetComponentData<PrefabRef>(building).m_Prefab;
-                    if (construction.m_NewPrefab != Entity.Null && construction.m_NewPrefab != current)
+                    // Construction progress changes these chunks every update; a level-up already
+                    // looked at is skipped unless its target prefab changed since.
+                    if (construction.m_NewPrefab != Entity.Null && construction.m_NewPrefab != current &&
+                        !(m_Approved.TryGetValue(building, out Entity approved) && approved == construction.m_NewPrefab))
                     {
                         pending.Add((building, construction, current));
                     }
@@ -353,15 +433,19 @@ namespace RealZoningBuildingThemes.Zones
             foreach (var (building, construction, current) in pending)
             {
                 m_Awaiting.Remove(building);
-                if (TryGetContext(tree, building, current, out BuildingInfo from, out AllowListSystem.ZoneRules zone, out float maxHeight))
+                if (TryGetContext(building, current, out BuildingInfo from, out AllowListSystem.ZoneRules zone, out float maxHeight))
                 {
                     Apply(building, construction, current, from, zone, maxHeight);
+                }
+                else
+                {
+                    m_Approved[building] = construction.m_NewPrefab; // not on our zones (or plopped): the game's level-up stands
                 }
             }
         }
 
         /// <summary>The building's index entry and the one of our zones it stands on; false if not on ours or plopped.</summary>
-        private bool TryGetContext(NativeQuadTree<Entity, Bounds2> tree, Entity building, Entity current, out BuildingInfo from, out AllowListSystem.ZoneRules zone, out float maxHeight)
+        private bool TryGetContext(Entity building, Entity current, out BuildingInfo from, out AllowListSystem.ZoneRules zone, out float maxHeight)
         {
             zone = null;
             maxHeight = float.PositiveInfinity;
@@ -373,7 +457,7 @@ namespace RealZoningBuildingThemes.Zones
 
             var lot = EntityManager.GetComponentData<BuildingData>(current).m_LotSize;
             var transform = EntityManager.GetComponentData<Transform>(building);
-            using (LotCells cells = LotCells.Read(EntityManager, tree, transform, lot))
+            using (LotCells cells = LotCells.Read(EntityManager, Tree, transform, lot))
             {
                 zone = OurZoneOf(cells);
                 maxHeight = cells.MaxHeight;
@@ -422,11 +506,13 @@ namespace RealZoningBuildingThemes.Zones
 
             if (target == Entity.Null)
             {
+                m_Approved.Remove(building);
                 Cancel(building, current, from, gameInfo);
                 Mod.log.Info($"LevelUp: '{from.Name}' in '{zone.Name}' keeps level {from.Level}; the zone allows no level {from.Level + 1} building that fits (the game chose '{gameInfo?.Name}').");
                 return;
             }
 
+            m_Approved[building] = target;
             if (target == gameChoice)
             {
                 return; // the game's choice is allowed and preferred
