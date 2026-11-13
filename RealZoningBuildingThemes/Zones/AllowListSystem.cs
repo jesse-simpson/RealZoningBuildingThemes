@@ -58,6 +58,9 @@ namespace RealZoningBuildingThemes.Zones
             s_RebuildRequested = true;
         }
 
+        /// <summary>Every building prefab on any of our allow-lists, with the zone type indices that allow it; the zone check copies it for its job.</summary>
+        public IReadOnlyDictionary<Entity, List<ushort>> ZonesByBuilding => m_ZonesByBuilding;
+
         /// <summary>Zone type indices of our zones that allow this building prefab, or null.</summary>
         public List<ushort> GetAllowingZones(Entity buildingPrefab)
         {
