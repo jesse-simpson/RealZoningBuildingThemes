@@ -76,6 +76,7 @@ namespace RealZoningBuildingThemes.Zones
         private NativeQueue<Result> m_Results;
         private bool m_Pending;
 
+        private bool m_LoggedWaiting;
         private int m_Checked;
         private int m_Condemned;
         private int m_Lifted;
@@ -126,7 +127,19 @@ namespace RealZoningBuildingThemes.Zones
                     return;
                 }
 
-                if (m_ZoneUpdateCollect.isUpdated && !m_BuildingConfigQuery.IsEmptyIgnoreFilter)
+                // Until the allow-lists exist (the first city of a session, until the simulation has
+                // run a few frames; it may be paused for a while after loading), every building on
+                // our zones would look unallowed and be condemned. Wait for them: the game's own
+                // check stays off meanwhile, so nothing is condemned for want of a list.
+                if (m_AllowList.RulesVersion == 0)
+                {
+                    if (!m_LoggedWaiting && m_ZoneUpdateCollect.isUpdated)
+                    {
+                        m_LoggedWaiting = true;
+                        Mod.log.Info("ZoneCheck: waiting for the zones' allow-lists before checking any building (they are built once the simulation runs).");
+                    }
+                }
+                else if (m_ZoneUpdateCollect.isUpdated && !m_BuildingConfigQuery.IsEmptyIgnoreFilter)
                 {
                     ScheduleCheck();
                 }
