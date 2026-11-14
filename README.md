@@ -29,6 +29,7 @@ Zones are saved in `ModsData\RealZoningBuildingThemes\zones.json` and shared by 
 ## Compatibility
 
 - **Plop the Growables**: supported. Its plopped buildings are left alone, and its despawn setting is honored.
+- **Placemaker**: supported. Buildings that Outgrow joins and bends count as the design they were made from, so they stay in custom zones that allow that design.
 - **Zone Organizer**: supported. Custom zones stay in a separate tab.
 - **Platter**: mostly works. Custom zones can be painted on parcels created by Platter and the appropriate buildings will grow; however, Platter's building counts will show 0 for each configuration.
 

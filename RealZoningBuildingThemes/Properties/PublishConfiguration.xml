@@ -32,6 +32,7 @@ Zones are saved in ModsData\RealZoningBuildingThemes\zones.json and shared by al
 
 # Compatibility
 - **Plop the Growables**: supported. Its plopped buildings are left alone, and its despawn setting is honored.
+- **Placemaker**: supported. Buildings that Outgrow joins and bends count as the design they were made from, so they stay in custom zones that allow that design.
 - **Zone Organizer**: supported. Custom zones stay in a separate tab.
 - **Platter**: mostly works. Custom zones can be painted on parcels created by Platter and the appropriate buildings will grow; however, Platter's building counts will show 0 for each configuration.
 
@@ -60,7 +61,7 @@ This mod is released under the MIT License.
 	<!--Link to the forum post where the mod can be discussed-->
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/real-zoning-building-themes.1949785/" />
 	<!--Version of the mod-->
-	<ModVersion Value="1.0.2" />
+	<ModVersion Value="1.0.3" />
 	<!--Recommended version of the base game to use the mod-->
 	<GameVersion Value="1.6.*" />
 	<!--Dependency for the mod, can be set multiple times-->
@@ -69,11 +70,9 @@ This mod is released under the MIT License.
 	<RequiredDLC Value="" />
 	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-**1.0.2**
-- Cities now survive without the mod. Every save, autosaves included, is written with game zones in place of custom zones: each building gets its own game zone under it and empty lots get the zone's base zone. Your custom zones are put back right after saving and when the city loads, so play is unchanged. If the mod is removed, broken by a game update or no longer maintained, the city loads as an ordinary city and nothing is demolished.
-- Cities last saved with an earlier version are protected from their next save onward.
-- Adds about 5 ms to each save.
-- Known issue: buildings reshaped by Placemaker's Outgrow can be condemned in custom zones. A fix is being tested.
+**1.0.3**
+- Placemaker: buildings that Outgrow joins and bends are no longer condemned in custom zones. They count as the design they were made from.
+- After a city loads, buildings in custom zones are no longer briefly marked condemned before the simulation starts.
 	</ChangeLog>
 	<!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "twitter", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme", "bluesky"-->
 	<ExternalLink Type="github" Url="https://github.com/jesse-simpson/RealZoningBuildingThemes" />
