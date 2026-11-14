@@ -71,8 +71,8 @@ This mod is released under the MIT License.
 	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
 **1.0.3**
-- Placemaker: buildings that Outgrow joins and bends are no longer condemned in custom zones. They count as the design they were made from.
-- After a city loads, buildings in custom zones are no longer briefly marked condemned before the simulation starts.
+- Added functionality with Placemaker, including outgrow.
+- Fixed issue with false condemnation when loading paused game.
 	</ChangeLog>
 	<!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "twitter", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme", "bluesky"-->
 	<ExternalLink Type="github" Url="https://github.com/jesse-simpson/RealZoningBuildingThemes" />
