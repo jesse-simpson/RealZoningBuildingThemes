@@ -50,6 +50,7 @@ namespace RealZoningBuildingThemes.Zones
         // hubs and broken ones alike), to tell new copies from new designs.
         private readonly Dictionary<Entity, Entity> m_VariantBase = new Dictionary<Entity, Entity>();
         private readonly HashSet<Entity> m_Known = new HashSet<Entity>();
+        private readonly List<Entity> m_AddedVariants = new List<Entity>();
 
         /// <summary>Every growable, as last indexed (empty until a city has loaded).</summary>
         public IReadOnlyList<BuildingInfo> Index => m_Index;
@@ -69,10 +70,47 @@ namespace RealZoningBuildingThemes.Zones
         /// <summary>Every building prefab on any of our allow-lists, with the zone type indices that allow it; the zone check copies it for its job.</summary>
         public IReadOnlyDictionary<Entity, List<ushort>> ZonesByBuilding => m_ZonesByBuilding;
 
-        /// <summary>Zone type indices of our zones that allow this building prefab, or null.</summary>
+        /// <summary>Zone type indices of our zones that allow this building prefab, or null. A Placemaker copy met for the first time is learned here.</summary>
         public List<ushort> GetAllowingZones(Entity buildingPrefab)
         {
-            return m_ZonesByBuilding.TryGetValue(buildingPrefab, out var zones) ? zones : null;
+            if (m_ZonesByBuilding.TryGetValue(buildingPrefab, out var zones))
+            {
+                return zones;
+            }
+
+            return EnsureVariant(buildingPrefab) && m_ZonesByBuilding.TryGetValue(buildingPrefab, out zones) ? zones : null;
+        }
+
+        /// <summary>Placemaker copies added to the allow-lists since the rules were last applied, in order (the zone check adds them to its job's map).</summary>
+        public IReadOnlyList<Entity> AddedVariants => m_AddedVariants;
+
+        /// <summary>
+        /// True when this building prefab is a Placemaker copy (now on the allow-lists of its design).
+        /// Placemaker makes most of its copies as disabled prefab entities, which no prefab query
+        /// lists, so a copy is learned when it is first met on a building, here.
+        /// </summary>
+        public bool EnsureVariant(Entity buildingPrefab)
+        {
+            if (m_VariantBase.ContainsKey(buildingPrefab))
+            {
+                return true;
+            }
+
+            if (RulesVersion == 0 || buildingPrefab == Entity.Null || m_InfoByEntity.ContainsKey(buildingPrefab))
+            {
+                return false;
+            }
+
+            Entity design = PlacemakerCompat.BaseOf(World, buildingPrefab);
+            if (design == buildingPrefab)
+            {
+                return false;
+            }
+
+            m_Known.Add(buildingPrefab);
+            m_VariantBase[buildingPrefab] = design;
+            AllowVariant(buildingPrefab, design);
+            return true;
         }
 
         /// <summary>The design a building prefab stands for: itself, or for a Placemaker reshaped copy, the design it was made from.</summary>
@@ -160,17 +198,14 @@ namespace RealZoningBuildingThemes.Zones
             }
 
             var added = new List<(Entity variant, Entity design)>();
+            var current = new HashSet<Entity>();
             var entities = m_BuildingQuery.ToEntityArray(Allocator.Temp);
             try
             {
-                if (entities.Length < m_Known.Count)
-                {
-                    return false; // prefabs were removed
-                }
-
                 for (int i = 0; i < entities.Length; i++)
                 {
                     Entity e = entities[i];
+                    current.Add(e);
                     if (m_Known.Contains(e))
                     {
                         continue;
@@ -190,6 +225,41 @@ namespace RealZoningBuildingThemes.Zones
                 entities.Dispose();
             }
 
+            // Placemaker also deletes copies no building uses any more. A design gone means a full
+            // rebuild; a copy gone is simply forgotten. (Copies made as disabled entities are not
+            // listed here at all; those are learned in EnsureVariant and kept until the next rebuild.)
+            var removed = new List<Entity>();
+            foreach (Entity e in m_Known)
+            {
+                if (!current.Contains(e) && !EntityManager.Exists(e))
+                {
+                    if (!m_VariantBase.ContainsKey(e))
+                    {
+                        return false;
+                    }
+
+                    removed.Add(e);
+                }
+            }
+
+            foreach (Entity e in removed)
+            {
+                m_Known.Remove(e);
+                m_VariantBase.Remove(e);
+                if (m_ZonesByBuilding.TryGetValue(e, out List<ushort> zones))
+                {
+                    foreach (ushort zone in zones)
+                    {
+                        if (m_RulesByIndex.TryGetValue(zone, out ZoneRules rules))
+                        {
+                            rules.AllowedSet.Remove(e);
+                        }
+                    }
+
+                    m_ZonesByBuilding.Remove(e);
+                }
+            }
+
             foreach (var (variant, design) in added)
             {
                 m_Known.Add(variant);
@@ -197,7 +267,6 @@ namespace RealZoningBuildingThemes.Zones
                 AllowVariant(variant, design);
             }
 
-            RulesVersion++;
             return true;
         }
 
@@ -210,6 +279,7 @@ namespace RealZoningBuildingThemes.Zones
             }
 
             m_ZonesByBuilding[variant] = zones;
+            m_AddedVariants.Add(variant);
             foreach (ushort zone in zones)
             {
                 if (m_RulesByIndex.TryGetValue(zone, out ZoneRules rules))
@@ -224,6 +294,7 @@ namespace RealZoningBuildingThemes.Zones
             var timer = System.Diagnostics.Stopwatch.StartNew();
             m_Index.Clear();
             m_InfoByEntity.Clear();
+            var learned = new List<Entity>(m_VariantBase.Keys);
             m_VariantBase.Clear();
             m_Known.Clear();
             var entities = m_BuildingQuery.ToEntityArray(Allocator.Temp);
@@ -301,6 +372,21 @@ namespace RealZoningBuildingThemes.Zones
                 entities.Dispose();
             }
 
+            // Copies learned from buildings (disabled entities the query does not list) stay known
+            // while Placemaker still has them.
+            foreach (Entity e in learned)
+            {
+                if (!m_VariantBase.ContainsKey(e) && EntityManager.Exists(e))
+                {
+                    Entity design = PlacemakerCompat.BaseOf(World, e);
+                    if (design != e)
+                    {
+                        m_Known.Add(e);
+                        m_VariantBase[e] = design;
+                    }
+                }
+            }
+
             BuildingIndex.AssignZoneTypes(EntityManager, m_Index);
             BuildingIndex.GroupSmallSources(m_Index);
             IndexVersion++;
@@ -323,6 +409,7 @@ namespace RealZoningBuildingThemes.Zones
             var timer = System.Diagnostics.Stopwatch.StartNew();
             m_ZonesByBuilding.Clear();
             m_RulesByIndex.Clear();
+            m_AddedVariants.Clear();
 
             var zoneEntities = m_OurZonesQuery.ToEntityArray(Allocator.Temp);
             try

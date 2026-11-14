@@ -207,6 +207,9 @@ namespace RealZoningBuildingThemes.Zones
                 return false;
             }
 
+            // A Placemaker copy counts as its design (learned here if Placemaker made it since the rules were applied).
+            m_AllowList.EnsureVariant(prefab);
+
             var lot = EntityManager.GetComponentData<BuildingData>(prefab).m_LotSize;
             var transform = EntityManager.GetComponentData<Transform>(building);
             bool onOurs = false;

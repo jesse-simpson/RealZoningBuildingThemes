@@ -69,6 +69,7 @@ namespace RealZoningBuildingThemes.Zones
         // allow it. Rebuilt when the rules change, never while a check is running.
         private NativeParallelMultiHashMap<Entity, ushort> m_Allowed;
         private int m_AllowedVersion = -1;
+        private int m_VariantCursor;
 
         // The check scheduled last update; its results are applied at the start of the next one.
         private JobHandle m_Handle;
@@ -282,6 +283,32 @@ namespace RealZoningBuildingThemes.Zones
             }
 
             m_AllowedVersion = m_AllowList.RulesVersion;
+            m_VariantCursor = m_AllowList.AddedVariants.Count;
+        }
+
+        /// <summary>Adds the Placemaker copies the allow-lists learned since the map was built (only when no check is running).</summary>
+        private void AddNewVariants()
+        {
+            IReadOnlyList<Entity> added = m_AllowList.AddedVariants;
+            if (m_VariantCursor > added.Count)
+            {
+                RebuildAllowed();
+                return;
+            }
+
+            for (; m_VariantCursor < added.Count; m_VariantCursor++)
+            {
+                Entity variant = added[m_VariantCursor];
+                if (m_Allowed.ContainsKey(variant) || !m_AllowList.ZonesByBuilding.TryGetValue(variant, out List<ushort> zones))
+                {
+                    continue;
+                }
+
+                foreach (ushort zone in zones)
+                {
+                    m_Allowed.Add(variant, zone);
+                }
+            }
         }
 
         /// <summary>Schedules the jobs that find and test the buildings in the areas whose zoning changed.</summary>
@@ -290,6 +317,10 @@ namespace RealZoningBuildingThemes.Zones
             if (m_AllowList.RulesVersion != m_AllowedVersion)
             {
                 RebuildAllowed();
+            }
+            else
+            {
+                AddNewVariants();
             }
 
             NativeList<Bounds2> updated = m_ZoneUpdateCollect.GetUpdatedBounds(true, out JobHandle boundsDeps);
@@ -364,6 +395,8 @@ namespace RealZoningBuildingThemes.Zones
 
                 var config = m_BuildingConfigQuery.GetSingleton<BuildingConfigurationData>();
                 IconCommandBuffer icons = m_IconCommandSystem.CreateCommandBuffer();
+                NativeQuadTree<Entity, Bounds2> zoneTree = default;
+                bool haveTree = false;
                 while (m_Results.TryDequeue(out Result result))
                 {
                     Entity building = result.m_Building;
@@ -382,6 +415,12 @@ namespace RealZoningBuildingThemes.Zones
                     }
                     else if (!result.m_Valid && !condemned)
                     {
+                        // A Placemaker copy the job did not know yet: test it again as its design.
+                        if (FitsAsCopy(building, ref zoneTree, ref haveTree))
+                        {
+                            continue;
+                        }
+
                         if (m_Examples.Count < 10)
                         {
                             m_Examples.Add(Describe(building));
@@ -396,12 +435,49 @@ namespace RealZoningBuildingThemes.Zones
                         m_Condemned++;
                     }
                 }
+
+                if (haveTree)
+                {
+                    m_ZoneSearch.AddSearchTreeReader(default(JobHandle));
+                }
             }
             finally
             {
                 m_Buildings.Dispose();
                 m_Results.Dispose();
             }
+        }
+
+        /// <summary>
+        /// True when the building's prefab is a Placemaker copy whose design is allowed where it
+        /// stands. Placemaker makes copies at any moment (mostly as disabled prefab entities no query
+        /// lists), so the job can meet one before the allow-lists know it; it is learned here.
+        /// </summary>
+        private bool FitsAsCopy(Entity building, ref NativeQuadTree<Entity, Bounds2> tree, ref bool haveTree)
+        {
+            Entity prefab = EntityManager.GetComponentData<PrefabRef>(building).m_Prefab;
+            if (m_Allowed.ContainsKey(prefab) || !m_AllowList.EnsureVariant(prefab) ||
+                !EntityManager.HasComponent<BuildingData>(prefab) || !EntityManager.HasComponent<SpawnableBuildingData>(prefab))
+            {
+                return false;
+            }
+
+            ZoneType home = ZoneType.None;
+            Entity homePrefab = EntityManager.GetComponentData<SpawnableBuildingData>(prefab).m_ZonePrefab;
+            if (homePrefab != Entity.Null && EntityManager.HasComponent<ZoneData>(homePrefab) && EntityManager.IsComponentEnabled<PrefabData>(homePrefab))
+            {
+                home = EntityManager.GetComponentData<ZoneData>(homePrefab).m_ZoneType;
+            }
+
+            if (!haveTree)
+            {
+                tree = m_ZoneSearch.GetSearchTree(true, out JobHandle deps);
+                deps.Complete();
+                haveTree = true;
+            }
+
+            return ZoneLotTest.LotIsAllowed(EntityManager, tree, EntityManager.GetComponentData<Transform>(building),
+                EntityManager.GetComponentData<BuildingData>(prefab).m_LotSize, home, m_AllowList.GetAllowingZones(prefab));
         }
 
         private void DisposePending()
@@ -424,6 +500,10 @@ namespace RealZoningBuildingThemes.Zones
             Entity prefab = EntityManager.GetComponentData<PrefabRef>(building).m_Prefab;
             Entity home = EntityManager.GetComponentData<SpawnableBuildingData>(prefab).m_ZonePrefab;
             string text = $"'{prefabs.GetPrefabName(prefab)}' (home zone '{(home != Entity.Null ? prefabs.GetPrefabName(home) : "none")}'";
+            if (m_AllowList.BaseOf(prefab) != prefab)
+            {
+                text += ", a Placemaker copy";
+            }
             if (EntityManager.HasComponent<Game.Objects.UnderConstruction>(building))
             {
                 Entity next = EntityManager.GetComponentData<Game.Objects.UnderConstruction>(building).m_NewPrefab;
